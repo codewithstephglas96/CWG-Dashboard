@@ -1,10 +1,10 @@
-// =========================================
+// =======================================
 // NLCB CHARTS WIDGET - PLAY WHE CHART
 // Created By: CODEWITHGLASGOW or CWG
 // Build: Widget/Full-Screen Play Whe Chart
-// Version 5.0
-// Last Modified: July 6 2026
-// =========================================
+// Version 5.4.3
+// Last Modified: July 10 2026
+// ========================================
 
 const BRANDING = "CODEWITHGLASGOW";
 const BASE_API = "https://script.google.com/macros/s/AKfycbwyr-M_ZzIscNgxJmR_UYHgZqmamn62Np4msDFaCjX9KgyUmyjuzuIYbawBmT0_mw4j/exec?action=calendar&weeks=72";
@@ -269,9 +269,9 @@ function processShelfData(weeksData) {
     let currentWeekHits = {};
     let weeklyHits = {};
 
-    // ============================================================
-    // FIRST PASS: Build all the shelf mark data
-    // ============================================================
+    // ===============================
+    // FIRST PASS: Build shelf mark data
+    // ================================
     for (let week of weeksData) {
         let parts = week.startDate.split(" ");
         let monthMap = {"Jan":0,"Feb":1,"Mar":2,"Apr":3,"May":4,"Jun":5,"Jul":6,"Aug":7,"Sep":8,"Oct":9,"Nov":10,"Dec":11};
@@ -345,11 +345,6 @@ function processShelfData(weeksData) {
             isHitThisWeek: !!currentWeekHits[n]
         });
     }
-
-    // ============================================================
-    // HOT MARKS LOGIC - Using Dashboard-Style Timeline Approach
-    // Same logic as the 'hotNumbers' function from the dashboard
-    // ============================================================
     
     // Step 1: Build a clean timeline of all draws (same as dashboard)
     const allTimeline = [];
@@ -906,9 +901,9 @@ function renderPlayWheShelfContainer(marks, numberColors, intervals, hotMarks, o
 // =====================================
 // Missing Lines and Suits Chart (14 Days)
 // =====================================
-// =========================================
+// ====================================
 // MISSING LINES & SUITES CHART WITH DOUBLES/TRIPLES/QUADRUPLES
-// =========================================
+// =====================================
 function renderIntelligentAnalysis(weeks) {
   if (!weeks || weeks.length === 0) {
     return `<div style="background: #ffffff; border-radius: 12px; padding: 20px; border: 1px solid #dddddd; text-align:center; color:#999;">📊 No data available</div>`;
@@ -998,7 +993,7 @@ function renderIntelligentAnalysis(weeks) {
     }
   }
 
-  // Get current week draws with dates (up to today)
+  // Get current week draws (up to today)
   const currentWeekDraws = [];
   const currentWeekDrawsWithDate = [];
   const todayIdx = now.getDay();
@@ -1019,11 +1014,16 @@ function renderIntelligentAnalysis(weeks) {
     prevWeekCounts[i] = 0;
     currWeekCounts[i] = 0;
   }
-  previousWeekDraws.forEach(num => { prevWeekCounts[num] = (prevWeekCounts[num] || 0) + 1; });
-  currentWeekDraws.forEach(num => { currWeekCounts[num] = (currWeekCounts[num] || 0) + 1; });
+  previousWeekDraws.forEach(num => { 
+    prevWeekCounts[num] = (prevWeekCounts[num] || 0) + 1; 
+  });
+  currentWeekDraws.forEach(num => { 
+    currWeekCounts[num] = (currWeekCounts[num] || 0) + 1; 
+  });
 
   // ====================================
   // DOUBLES, TRIPLES, QUADRUPLES ANALYSIS
+  // CORRECTED: Proper streak progression
   // ====================================
 
   const doubleNumbers = [8, 11, 22, 33];
@@ -1031,35 +1031,69 @@ function renderIntelligentAnalysis(weeks) {
   const allTriples = [];
   const allQuadruples = [];
 
+  // ====================================
   // DOUBLES: Only 8, 11, 22, 33
-  const toDoubleMissing = doubleNumbers.filter(num => !previousWeekDraws.includes(num) && !currentWeekDraws.includes(num));
-  const toDoubleCurrent = doubleNumbers.filter(num => (currWeekCounts[num] || 0) === 1);
+  // ====================================
+  const toDoubleMissing = doubleNumbers.filter(num => 
+    !previousWeekDraws.includes(num) && !currentWeekDraws.includes(num)
+  );
+  
+  const toDoublePending = doubleNumbers.filter(num => 
+    (prevWeekCounts[num] || 0) === 1 && !currentWeekDraws.includes(num)
+  );
+  
+  const toDoubleCurrent = doubleNumbers.filter(num => 
+    (currWeekCounts[num] || 0) === 1
+  );
   
   toDoubleMissing.forEach(num => allDoubles.push(num));
+  toDoublePending.forEach(num => allDoubles.push(num));
   toDoubleCurrent.forEach(num => allDoubles.push(num));
 
-  // TRIPLES
-  const toTripleMissing = [];
+  // ====================================
+  // TRIPLES: All numbers 1-36
+  // - Pending: 2 HITS in previous week, 0 HITS in current week (needs 1 more)
+  // - 2 HITS: 2 HITS in current week (needs 1 more for TRIPLE)
+  // - Completed: 2 HITS previous week + 1 HIT current week = 3
+  // NOTE: 1 HIT in previous week does NOT carry over
+  // ====================================
+  const toTriplePending = [];
   const toTripleCurrent = [];
+  
   for (let num = 1; num <= 36; num++) {
     const prevCount = prevWeekCounts[num] || 0;
     const currCount = currWeekCounts[num] || 0;
-    if (prevCount === 2 && currCount === 0) toTripleMissing.push(num);
+    
+    // PENDING: 2 HITS previous week, 0 HITS current week
+    if (prevCount === 2 && currCount === 0) toTriplePending.push(num);
+    
+    // 2 HITS: 2 HITS current week (needs 1 more)
     if (currCount === 2) toTripleCurrent.push(num);
   }
-  toTripleMissing.forEach(num => allTriples.push(num));
+  toTriplePending.forEach(num => allTriples.push(num));
   toTripleCurrent.forEach(num => allTriples.push(num));
 
-  // QUADRUPLES
-  const toQuadrupleMissing = [];
+  // ====================================
+  // QUADRUPLES: All numbers 1-36
+  // - Pending: 3 HITS in previous week, 0 HITS in current week (needs 1 more)
+  // - 3 HITS: 3 HITS in current week (needs 1 more for QUADRUPLE)
+  // - Completed: 3 HITS previous week + 1 HIT current week = 4
+  // NOTE: 1 HIT in previous week does NOT carry over
+  // ====================================
+  const toQuadruplePending = [];
   const toQuadrupleCurrent = [];
+  
   for (let num = 1; num <= 36; num++) {
     const prevCount = prevWeekCounts[num] || 0;
     const currCount = currWeekCounts[num] || 0;
-    if (prevCount === 3 && currCount === 0) toQuadrupleMissing.push(num);
+    
+    // PENDING: 3 HITS previous week, 0 HITS current week
+    if (prevCount === 3 && currCount === 0) toQuadruplePending.push(num);
+    
+    // 3 HITS: 3 HITS current week (needs 1 more)
     if (currCount === 3) toQuadrupleCurrent.push(num);
   }
-  toQuadrupleMissing.forEach(num => allQuadruples.push(num));
+  toQuadruplePending.forEach(num => allQuadruples.push(num));
   toQuadrupleCurrent.forEach(num => allQuadruples.push(num));
 
   // Remove duplicates
@@ -1068,39 +1102,13 @@ function renderIntelligentAnalysis(weeks) {
   const uniqueQuadruples = [...new Set(allQuadruples)].sort((a, b) => a - b);
 
   // ====================================
-  // CHECK COMPLETED STREAKS WITH DATE/TIME
+  // CHECK COMPLETED STREAKS 
   // ====================================
-  
-  function formatBannerDate(date, slot) {
-    if (!date) return "";
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const dateStr = `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]} '${date.getFullYear().toString().slice(-2)}`;
-    const timeStr = timeDisplay[slot] || slot;
-    return `${dateStr} @ ${timeStr}`;
-  }
-
   const completedDoubles = [];
   const completedTriples = [];
   const completedQuadruples = [];
-  const completionDetails = {};
 
-  // ====================================
-  // Populate completionDetails 
-  // ====================================
-  currentWeekDrawsWithDate.forEach(draw => {
-    const key = `${draw.value}`;
-    if (!completionDetails[key]) {
-      completionDetails[key] = [];
-    }
-    completionDetails[key].push({
-      date: draw.date,
-      slot: draw.slot,
-      formatted: formatBannerDate(draw.date, draw.slot)
-    });
-  });
-
-  // DOUBLES COMPLETED: A double number played twice in current week
+  // DOUBLES COMPLETED: 2+ HITS in current week
   doubleNumbers.forEach(num => {
     const currCount = currWeekCounts[num] || 0;
     if (currCount >= 2 && !completedDoubles.includes(num)) {
@@ -1108,21 +1116,25 @@ function renderIntelligentAnalysis(weeks) {
     }
   });
 
-  // TRIPLES COMPLETED: total plays = 3 (any combination)
+  // TRIPLES COMPLETED: 2 HITS previous week + 1 HIT current week = 3
   for (let num = 1; num <= 36; num++) {
     const prevCount = prevWeekCounts[num] || 0;
     const currCount = currWeekCounts[num] || 0;
-    if ((prevCount === 2 && currCount === 1) || (prevCount === 1 && currCount === 2) || (prevCount === 0 && currCount === 3)) {
+    // ONLY count if prevCount is 2 and currCount is 1
+    // Do NOT count if prevCount is 1 and currCount is 2 (that's 2 HITS current week)
+    if (prevCount === 2 && currCount === 1) {
       completedTriples.push(num);
     }
   }
 
-  // QUADRUPLES COMPLETED: total plays = 4 (any combination)
+  // QUADRUPLES COMPLETED: 3 HITS previous week + 1 HIT current week = 4
   for (let num = 1; num <= 36; num++) {
     const prevCount = prevWeekCounts[num] || 0;
     const currCount = currWeekCounts[num] || 0;
-    if ((prevCount === 3 && currCount === 1) || (prevCount === 2 && currCount === 2) || 
-        (prevCount === 1 && currCount === 3) || (prevCount === 0 && currCount === 4)) {
+    // ONLY count if prevCount is 3 and currCount is 1
+    // Do NOT count if prevCount is 2 and currCount is 2 (that's 2 HITS current week)
+    // Do NOT count if prevCount is 1 and currCount is 3 (that's 3 HITS current week)
+    if (prevCount === 3 && currCount === 1) {
       completedQuadruples.push(num);
     }
   }
@@ -1156,53 +1168,113 @@ function renderIntelligentAnalysis(weeks) {
   // =====================================
   // BUILD COMPLETION BANNER WITH DATE/TIME
   // =====================================
+  const completionDetails = {};
+  
+  currentWeekDrawsWithDate.forEach(draw => {
+    const key = `${draw.value}`;
+    if (!completionDetails[key]) {
+      completionDetails[key] = [];
+    }
+    completionDetails[key].push({
+      date: draw.date,
+      slot: draw.slot,
+      formatted: formatBannerDate(draw.date, draw.slot)
+    });
+  });
+
+  function formatBannerDate(date, slot) {
+    if (!date) return "";
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const dateStr = `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]} '${date.getFullYear().toString().slice(-2)}`;
+    const timeStr = timeDisplay[slot] || slot;
+    return `${dateStr} @ ${timeStr}`;
+  }
+
+  // =====================================
+  // BUILD BANNERS FOR ALL STATUSES
+  // =====================================
   const allBanners = [];
 
-  // Quadruples (highest priority)
+  // QUADRUPLE COMPLETED
   completedQuadruples.forEach(num => {
     const draws = completionDetails[num] || [];
     const latest = draws.length > 0 ? draws[draws.length - 1] : null;
     const dateStr = latest ? ` ${latest.formatted}` : "";
     allBanners.push({
       num: num,
-      category: 'QUADRUPLE',
+      category: 'QUADRUPLE_COMPLETED',
       color: '#ff375f',
-      priority: 3,
+      priority: 4,
       text: `#${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Has Completed <span style="color:#ff375f;">QUADRUPLE</span> Play Streak!<br><center>${dateStr}</center>`
     });
   });
 
-  // Triples
+  // QUADRUPLE PENDING (3 HITS previous week, 0 current week)
+  toQuadruplePending.forEach(num => {
+    allBanners.push({
+      num: num,
+      category: 'QUADRUPLE_PENDING',
+      color: '#800080',
+      priority: 3,
+      text: `#${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Made  - 1 More To Complete QUADRUPLE Streak!<br><center>Pending from last week</center>`
+    });
+  });
+
+  // QUADRUPLE 3 HITS (current week, needs 1 more)
+  toQuadrupleCurrent.forEach(num => {
+    const draws = completionDetails[num] || [];
+    const latest = draws.length > 0 ? draws[draws.length - 1] : null;
+    const dateStr = latest ? ` ${latest.formatted}` : "";
+    allBanners.push({
+      num: num,
+      category: 'QUADRUPLE_3HIT',
+      color: '#ff375f',
+      priority: 2,
+      text: `#${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Made <span style="color:#ff375f;">3 HITS</span> - 1 More To QUADRUPLE!<br><center>${dateStr}</center>`
+    });
+  });
+
+  // TRIPLE COMPLETED
   completedTriples.forEach(num => {
     const draws = completionDetails[num] || [];
     const latest = draws.length > 0 ? draws[draws.length - 1] : null;
     const dateStr = latest ? ` ${latest.formatted}` : "";
     allBanners.push({
       num: num,
-      category: 'TRIPLE',
+      category: 'TRIPLE_COMPLETED',
       color: '#ff9d00',
-      priority: 2,
+      priority: 1,
       text: `#${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Has Completed <span style="color:#ff9d00;">TRIPLE</span> Play Streak!<br><center>${dateStr}</center>`
     });
   });
 
-  // DOUBLES - CORRECTED: Show when a double number has played once (in current week)
-  const doublePlayedOnce = doubleNumbers.filter(num => (currWeekCounts[num] || 0) === 1);
-  
-  doublePlayedOnce.forEach(num => {
+  // TRIPLE PENDING (2 HITS previous week, 0 current week)
+  toTriplePending.forEach(num => {
+    allBanners.push({
+      num: num,
+      category: 'TRIPLE_PENDING',
+      color: '#800080',
+      priority: 0,
+      text: `#${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Made 2 Hits - 1 More To Complete Streak!<br><center>Pending Triple From Last Week</center>`
+    });
+  });
+
+  // TRIPLE 2 HITS (current week, needs 1 more)
+  toTripleCurrent.forEach(num => {
     const draws = completionDetails[num] || [];
     const latest = draws.length > 0 ? draws[draws.length - 1] : null;
     const dateStr = latest ? ` ${latest.formatted}` : "";
     allBanners.push({
       num: num,
-      category: 'DOUBLE_PLAYED',
-      color: '#32d74b',
-      priority: 1,
-      text: `Double: #${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Has Played!<br><center>${dateStr}</center>`
+      category: 'TRIPLE_2HIT',
+      color: '#ff9d00',
+      priority: 0,
+      text: `#${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Made <span style="color:#ff9d00;">2 HITS</span> - 1 More To TRIPLE!<br><center>${dateStr}</center>`
     });
   });
 
-  // DOUBLES COMPLETED: When a double number has played twice (completed streak)
+  // DOUBLE COMPLETED
   doubleNumbers.forEach(num => {
     const currCount = currWeekCounts[num] || 0;
     if (currCount >= 2) {
@@ -1213,16 +1285,41 @@ function renderIntelligentAnalysis(weeks) {
         num: num,
         category: 'DOUBLE_COMPLETED',
         color: '#32d74b',
-        priority: 1,
+        priority: 0,
         text: `#${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Has Completed <span style="color:#32d74b;">DOUBLE</span> Play Streak!<br><center>${dateStr}</center>`
       });
     }
   });
 
-  // Sort by priority (highest first)
+  // DOUBLE PENDING (1 HIT previous week, 0 current week)
+  toDoublePending.forEach(num => {
+    allBanners.push({
+      num: num,
+      category: 'DOUBLE_PENDING',
+      color: '#800080',
+      priority: 0,
+      text: `Double: #${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) <span style="color:#800080;">PENDING</span> - 1 More To Complete DOUBLE Play Streak!<br><center>Pending from last week</center>`
+    });
+  });
+
+  // DOUBLE 1 HIT (current week, needs 1 more)
+  toDoubleCurrent.forEach(num => {
+    const draws = completionDetails[num] || [];
+    const latest = draws.length > 0 ? draws[draws.length - 1] : null;
+    const dateStr = latest ? ` ${latest.formatted}` : "";
+    allBanners.push({
+      num: num,
+      category: 'DOUBLE_1HIT',
+      color: '#32d74b',
+      priority: 0,
+      text: `Double: #${num}${spiritEmoji[num] || ''} (${spiritNames[num] || 'Unknown'}) Made <span style="color:#32d74b;">1 HIT</span> - 1 More To DOUBLE!<br><center>${dateStr}</center>`
+    });
+  });
+
+  // Sort by priority
   allBanners.sort((a, b) => b.priority - a.priority);
 
-  // Generate completion banner HTML with ticker animation
+  // Generate completion banner HTML
   let completionBannerHtml = '';
   if (allBanners.length > 0) {
     const bannerItems = allBanners.map((banner, index) => `
@@ -1277,9 +1374,9 @@ function renderIntelligentAnalysis(weeks) {
   }
 
   // =====================================
-  // RENDER 3x3 GRID FOR NUMBERS
+  // RENDER 3x3 GRID - CLEAN DESIGN
   // =====================================
-  function renderCategoryGrid(numbers, categoryColor, label) {
+  function renderCategoryGrid(numbers, categoryColor, isDouble = false, isTriple = false, isQuadruple = false) {
     if (!numbers || numbers.length === 0) {
       return `<div style="text-align:center; color:#999; font-size:11px; padding:8px 0;">None</div>`;
     }
@@ -1288,15 +1385,56 @@ function renderIntelligentAnalysis(weeks) {
     
     return `
       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;">
-        ${displayNumbers.map(num => `
-          <div style="display: flex; flex-direction: column; align-items: center; background: ${categoryColor}15; border-radius: 4px; padding: 2px 4px; border: 1px solid ${categoryColor}30;">
-            <span style="font-size: 14px; font-weight: 900; color: ${categoryColor};">${num}</span>
-            <span style="font-size: 9px; color: #666;">${spiritEmoji[num] || ''}</span>
-          </div>
-        `).join('')}
+        ${displayNumbers.map(num => {
+          // Determine status
+          const isMissing = isDouble && 
+            !previousWeekDraws.includes(num) && 
+            !currentWeekDraws.includes(num);
+          
+          const isPending = (isDouble && (prevWeekCounts[num] || 0) === 1 && !currentWeekDraws.includes(num)) ||
+                           (isTriple && (prevWeekCounts[num] || 0) === 2 && !currentWeekDraws.includes(num)) ||
+                           (isQuadruple && (prevWeekCounts[num] || 0) === 3 && !currentWeekDraws.includes(num));
+          
+          const isOneHit = isDouble && (currWeekCounts[num] || 0) === 1;
+          const isTwoHit = isTriple && (currWeekCounts[num] || 0) === 2;
+          const isThreeHit = isQuadruple && (currWeekCounts[num] || 0) === 3;
+          
+          let bgColor = `${categoryColor}15`;
+          let textColor = categoryColor;
+          let borderColor = `${categoryColor}30`;
+          
+          if (isMissing) {
+            bgColor = '#ffffff';
+            textColor = '#000000';
+            borderColor = '#cccccc';
+          } else if (isPending) {
+            bgColor = 'rgba(128, 0, 128, 0.15)';
+            textColor = '#800080';
+            borderColor = 'rgba(128, 0, 128, 0.4)';
+          } else if (isOneHit) {
+            bgColor = '#32d74b';
+            textColor = '#000000';
+            borderColor = '#32d74b';
+          } else if (isTwoHit) {
+            bgColor = 'rgba(255, 165, 0, 0.25)';
+            textColor = '#ff8c00';
+            borderColor = 'rgba(255, 165, 0, 0.4)';
+          } else if (isThreeHit) {
+            bgColor = 'rgba(255, 55, 95, 0.25)';
+            textColor = '#ff375f';
+            borderColor = 'rgba(255, 55, 95, 0.4)';
+          }
+          
+          return `
+            <div style="display: flex; flex-direction: column; align-items: center; background: ${bgColor}; border-radius: 4px; padding: 4px 2px; border: 1px solid ${borderColor};">
+              <span style="font-size: 16px; font-weight: 900; color: ${textColor};">${num}</span>
+              <span style="font-size: 11px; color: #666;">${spiritEmoji[num] || ''}</span>
+            </div>
+          `;
+        }).join('')}
         ${displayNumbers.length < 9 ? Array(9 - displayNumbers.length).fill(0).map(() => `
-          <div style="display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.02); border-radius: 4px; padding: 2px 4px; opacity: 0.3;">
-            <span style="font-size: 14px; font-weight: 900; color: #ccc;">—</span>
+          <div style="display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.02); border-radius: 4px; padding: 4px 2px; opacity: 0.3;">
+            <span style="font-size: 16px; font-weight: 900; color: #ccc;">—</span>
           </div>
         `).join('') : ''}
       </div>
@@ -1403,7 +1541,8 @@ function renderIntelligentAnalysis(weeks) {
             <span style="font-size: 10px; font-weight: 800; color: #32d74b;">🔥DOUBLE🔥</span>
             <span style="font-size: 7px; color: #666; display: block;">1x → 2x</span>
           </div>
-          ${renderCategoryGrid(finalDoubles, '#32d74b', 'DOUBLE')}
+          ${renderCategoryGrid(finalDoubles, '#32d74b', true, false, false)}
+          ${finalDoubles.length > 0 ? `<div style="text-align: center; font-size: 7px; color: #666; margin-top: 4px;">${finalDoubles.length} numbers</div>` : ''}
         </div>
         
         <!-- TRIPLES -->
@@ -1412,7 +1551,8 @@ function renderIntelligentAnalysis(weeks) {
             <span style="font-size: 10px; font-weight: 800; color: #ff9d00;">♠️TRIPLE♠️</span>
             <span style="font-size: 7px; color: #666; display: block;">2x → 3x</span>
           </div>
-          ${renderCategoryGrid(finalTriples, '#ff9d00', 'TRIPLE')}
+          ${renderCategoryGrid(finalTriples, '#ff9d00', false, true, false)}
+          ${finalTriples.length > 0 ? `<div style="text-align: center; font-size: 7px; color: #666; margin-top: 4px;">${finalTriples.length} numbers</div>` : ''}
         </div>
         
         <!-- QUADRUPLES -->
@@ -1421,9 +1561,38 @@ function renderIntelligentAnalysis(weeks) {
             <span style="font-size: 10px; font-weight: 800; color: #ff375f;">♦️QUADRUPLE♦️</span>
             <span style="font-size: 7px; color: #666; display: block;">3x → 4x</span>
           </div>
-          ${renderCategoryGrid(finalQuadruples, '#ff375f', 'QUADRUPLE')}
+          ${renderCategoryGrid(finalQuadruples, '#ff375f', false, false, true)}
+          ${finalQuadruples.length > 0 ? `<div style="text-align: center; font-size: 7px; color: #666; margin-top: 4px;">${finalQuadruples.length} numbers</div>` : ''}
         </div>
         
+      </div>
+      
+      <!-- LEGEND - 3x3 Grid Layout -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 4px 0 8px 0; padding: 6px; background: #f5f5f5; border-radius: 4px;">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 8px; color: #666; padding: 2px 4px;">
+          <span style="display: inline-block; width: 14px; height: 14px; background: #ffffff; border: 1px solid #cccccc; border-radius: 3px; flex-shrink: 0;"></span>
+          <span>MISSING = 0 HITS</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 8px; color: #666; padding: 2px 4px;">
+          <span style="display: inline-block; width: 14px; height: 14px; background: #800080; border-radius: 3px; flex-shrink: 0;"></span>
+          <span>PENDING = From last week</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 8px; color: #666; padding: 2px 4px;">
+          <span style="display: inline-block; width: 14px; height: 14px; background: #32d74b; border-radius: 3px; flex-shrink: 0;"></span>
+          <span>1 HIT = Needs 1 more for Double</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 8px; color: #666; padding: 2px 4px;">
+          <span style="display: inline-block; width: 14px; height: 14px; background: #ff8c00; border-radius: 3px; flex-shrink: 0;"></span>
+          <span>2 HITS = Needs 1 more for Triple</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 8px; color: #666; padding: 2px 4px;">
+          <span style="display: inline-block; width: 14px; height: 14px; background: #ff375f; border-radius: 3px; flex-shrink: 0;"></span>
+          <span>3 HITS = Needs 1 more for Quadruple</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 8px; color: #666; padding: 2px 4px;">
+          <span style="display: inline-block; width: 14px; height: 14px; background: #32d74b; border: 2px solid #32d74b; border-radius: 3px; flex-shrink: 0;"></span>
+          <span>COMPLETED = Shown in banner</span>
+        </div>
       </div>
       
       <hr style="border: none; border-top: 2px solid #000000; margin: 6px 0 8px 0;">
