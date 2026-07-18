@@ -1,19 +1,62 @@
 // =======================================
-// NLCB CHARTS WIDGET - PLAY WHE CHART
+// CHARTS - PLAY WHE CHART
 // Created By: CODEWITHGLASGOW or CWG
 // Build: Widget/Full-Screen Play Whe Chart
-// Version 5.5.1
-// Last Modified: July 12 2026
+// Version 5.5.9
+// Last Modified: July 18 2026
 // ========================================
 
 const BRANDING = "CODEWITHGLASGOW";
-const BASE_API = "https://script.google.com/macros/s/AKfycbwyr-M_ZzIscNgxJmR_UYHgZqmamn62Np4msDFaCjX9KgyUmyjuzuIYbawBmT0_mw4j/exec?action=calendar&weeks=77";
+const BASE_API = "https://script.google.com/macros/s/AKfycbwyr-M_ZzIscNgxJmR_UYHgZqmamn62Np4msDFaCjX9KgyUmyjuzuIYbawBmT0_mw4j/exec?action=calendar&weeks=450";
 
 const TICKER_URL = "https://script.google.com/macros/s/AKfycbymSUZ3cuBP7wZSKkxs8QmjMkKP6q3j-LOW_CVpY3n6Sw1EzsdwPu6yTEkpOmiAJz95/exec?action=ticker";
 
 const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const timeOrder = ["MOR", "MID", "NON", "EVE"];
 const dayShort = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+// =====================================
+// TIMELINE ARRAYS FOR ALL GAME TYPES
+// =====================================
+let pwTimeline = [];
+let timeline = [];
+
+const todayName = daysOfWeek[new Date().getDay()];
+
+// =====================================
+// PROCESS TIMELINE DATA FOR PLAY WHE ONLY
+// =====================================
+function processTimelines(pwData) {
+    console.log("🔄 processTimelines called");
+    
+    // Reset all arrays
+    pwTimeline = [];
+    
+    // Process Play Whe
+    if (pwData && pwData.data && pwData.data.weeks) {
+        console.log("📊 Processing PW data, weeks:", pwData.data.weeks.length);
+        pwData.data.weeks.forEach((wk, wkIdx) => {
+            wk.days.forEach((day, dayIdx) => {
+                timeOrder.forEach((t, slotIdx) => {
+                    let val = String(day.draws[t]);
+                    let m = val.match(/^(\d+)/);
+                    if (m && val !== "PENDING" && val !== "-" && val !== "HOLIDAY") {
+                        pwTimeline.push({ n: parseInt(m[1]), date: wk.startDate });
+                    }
+                });
+            });
+        });
+        console.log("✅ PW Timeline entries:", pwTimeline.length);
+        if (pwTimeline.length > 0) {
+            console.log("🔍 PW First 5 entries:", pwTimeline.slice(0, 5));
+        }
+    } else {
+        console.log("⚠️ No PW data available");
+    }
+    
+    console.log("✅ processTimelines complete");
+    console.log("📊 Final counts - PW:", pwTimeline.length);
+}
 
 // ====================================
 // HELPER FUNCTIONS FOR HOLIDAY HANDLING
@@ -92,7 +135,7 @@ if (config.runsInWidget) {
 }
 
 // =========================================
-// 1. WIDGET GENERATION
+// 1. WIDGET GENERATION - KEEP ORIGINAL CONTENTS
 // =========================================
 async function createWidget() {
   let widget = new ListWidget();
@@ -172,7 +215,7 @@ async function createWidget() {
     return col;
   }
 
-  // ROW 1: TITLES
+  // ROW 1: TITLES (Keep original: Play Whe, Pick 2, Pick 4)
   let r1 = grid.addStack();
   ["PLAY WHE", "PICK 2", "PICK 4"].forEach(txt => {
     let c = makeCol(r1);
@@ -244,37 +287,65 @@ async function presentFullScreenCharts() {
     let params = args.queryParameters || {};
     let gameType = params.game || "P2WHE";
     
-    let data = await new Request(BASE_API + "&game=" + gameType).loadJSON();
-    let weeks = data?.data?.weeks || [];
+    console.log("🚀 Starting presentFullScreenCharts");
+    console.log("📌 Game Type:", gameType);
     
-    const today = new Date();
-    const filteredWeeks = weeks.filter(wk => {
-        const wkDate = new Date(wk.startDate);
-        return wkDate <= today || wk.isCurrentWeek;
-    }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-    
-    let title = "PLAY WHE";
-    if (gameType === "PIKII") title = "PICK 2";
-    if (gameType === "PIKIV") title = "PICK 4";
-    
-    let html = generateFullScreenChart(filteredWeeks, gameType, title);
-    
-    let wv = new WebView();
-    await wv.loadHTML(html);
-    await wv.present();
+    try {
+        // Fetch ONLY Play Whe data
+        console.log("📡 Fetching data from API...");
+        const pwData = await new Request(BASE_API + "&game=P2WHE").loadJSON();
+        
+        const pwDataCopy = JSON.parse(JSON.stringify(pwData));
+        
+        console.log("✅ Data fetched successfully");
+        console.log("📊 PW Data weeks:", pwDataCopy?.data?.weeks?.length || 0);
+        
+        console.log("🔄 Processing timelines...");
+        processTimelines(pwDataCopy);
+        console.log("✅ Timelines processed");
+        
+        let weeks = pwDataCopy?.data?.weeks || [];
+        let title = "PLAY WHE";
+        
+        console.log("🎯 Using PLAY WHE data, weeks:", weeks.length);
+        
+        const today = new Date();
+        const filteredWeeks = weeks.filter(wk => {
+            const wkDate = new Date(wk.startDate);
+            return wkDate <= today || wk.isCurrentWeek;
+        }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+        
+        console.log("📅 Filtered weeks count:", filteredWeeks.length);
+        
+        console.log("📄 Generating HTML...");
+        let html = generateFullScreenChart(filteredWeeks, gameType, title, pwDataCopy);
+        console.log("✅ HTML generated, length:", html.length);
+        
+        let wv = new WebView();
+        await wv.loadHTML(html);
+        await wv.present();
+        console.log("🎉 WebView presented successfully");
+        
+    } catch (error) {
+        console.error("❌ Error in presentFullScreenCharts:", error);
+        console.error("Stack trace:", error.stack);
+        let errorHtml = `<html><body style="padding:20px; font-family: sans-serif; color: red;">
+            <h2>Error Loading Data</h2>
+            <p>${error.message}</p>
+            <p>Please check your internet connection and try again.</p>
+        </body></html>`;
+        let wv = new WebView();
+        await wv.loadHTML(errorHtml);
+        await wv.present();
+    }
 }
 
-// ======================================
-// Additional Features Added Here
-// ======================================
 // ======================================
 // RENDER SHELF CONTAINER INSIDE CHART
 // ======================================
 function renderShelfContainer(weeksData) {
-    // Process the weeks data for shelf marks
     const shelfData = processShelfData(weeksData);
     
-    // Render the shelf container with hot marks and overdue marks
     return renderPlayWheShelfContainer(
         shelfData.marks,
         shelfData.numberColors,
@@ -290,8 +361,6 @@ function renderShelfContainer(weeksData) {
 
 // =====================================
 // PLAYWHE SHELF MARKS PROCESSING & RENDER
-// WITH HOT MARKS & OVERDUE MARKS 
-// UPDATED: Hot Marks now uses dashboard-style timeline logic
 // ====================================
 
 function processShelfData(weeksData) {
@@ -336,9 +405,6 @@ function processShelfData(weeksData) {
     let currentWeekHits = {};
     let weeklyHits = {};
 
-    // ===============================
-    // FIRST PASS: Build shelf mark data
-    // ================================
     for (let week of weeksData) {
         let parts = week.startDate.split(" ");
         let monthMap = {"Jan":0,"Feb":1,"Mar":2,"Apr":3,"May":4,"Jun":5,"Jul":6,"Aug":7,"Sep":8,"Oct":9,"Nov":10,"Dec":11};
@@ -378,7 +444,6 @@ function processShelfData(weeksData) {
         }
     }
 
-    // Calculate intervals for shelf marks
     let nowTs = Date.now();
     for (let n = 1; n <= 36; n++) {
         let info = markInfo[n];
@@ -394,7 +459,6 @@ function processShelfData(weeksData) {
         }
     }
 
-    // Build shelf marks array
     let marks = [];
     for (let n = 1; n <= 36; n++) {
         let info = markInfo[n] || { frequency: 0, lastDate: null };
@@ -413,7 +477,6 @@ function processShelfData(weeksData) {
         });
     }
     
-    // Step 1: Build a clean timeline of all draws (same as dashboard)
     const allTimeline = [];
     const sortedWeeks = [...weeksData].sort((a, b) => {
         let pa = a.startDate.split(" ");
@@ -421,13 +484,10 @@ function processShelfData(weeksData) {
         return new Date(pa[2] + "-" + pa[1] + "-" + pa[0]) - new Date(pb[2] + "-" + pb[1] + "-" + pb[0]);
     });
     
-    // Step 2: Get the last 6 weeks EXCLUDING current week
-    // (same as dashboard's hotWeeksCount = 6)
     const hotWeeksCount = 6;
-    const startIdx = Math.max(0, sortedWeeks.length - hotWeeksCount - 1); // -1 to exclude current week
-    const hotWeeks = sortedWeeks.slice(startIdx, -1); // Exclude last week (current week)
+    const startIdx = Math.max(0, sortedWeeks.length - hotWeeksCount - 1);
+    const hotWeeks = sortedWeeks.slice(startIdx, -1);
     
-    // Step 3: Build timeline from these weeks (same as dashboard)
     for (const week of hotWeeks) {
         const weekStart = new Date(week.startDate);
         for (let d = 0; d < dayOrder.length; d++) {
@@ -451,13 +511,11 @@ function processShelfData(weeksData) {
         }
     }
     
-    // Step 4: Calculate frequency (same as dashboard)
     const frequency = {};
     for (let i = 1; i <= 36; i++) {
         frequency[i] = 0;
     }
     
-    // Step 5: EXCLUDE numbers played in current week (same as dashboard)
     const currentWeekDraws = Object.keys(currentWeekHits).map(Number);
     allTimeline.forEach(entry => {
         if (!currentWeekDraws.includes(entry.num)) {
@@ -465,7 +523,6 @@ function processShelfData(weeksData) {
         }
     });
     
-    // Step 6: Sort and select top 6 (dashboard uses top 8, we use top 6 for 3x3 grid)
     const hotMarks = Object.entries(frequency)
         .filter(([num, count]) => count > 0 && !currentWeekDraws.includes(parseInt(num)))
         .sort((a, b) => b[1] - a[1])
@@ -476,7 +533,6 @@ function processShelfData(weeksData) {
             spirit: spirits[parseInt(num)] || "Unknown"
         }));
 
-    // Calculate OverDue Marks (top 6 with highest days - always show 6)
     let overdueMarks = marks
         .sort((a, b) => b.days - a.days)
         .slice(0, 6)
@@ -497,7 +553,6 @@ function renderPlayWheShelfContainer(marks, numberColors, intervals, hotMarks, o
 
     const sortedMarks = [...marks].sort((a, b) => b.days - a.days);
     
-    // Calculate dynamic badge text for Overdue Marks
     let overdueBadgeText = "Last ";
     if (overdueMarks && overdueMarks.length > 0) {
         const maxDays = overdueMarks[0].days;
@@ -514,12 +569,11 @@ function renderPlayWheShelfContainer(marks, numberColors, intervals, hotMarks, o
     let html = `
     <style>
         .shelf-container {
-            padding: 10px 4px;
+            padding: -19px 0px;
             max-width: 100%;
             margin: 0 auto;
         }
         
-        /* Hot & Overdue Marks - Side by Side */
         .top-marks-container {
             display: flex;
             gap: 12px;
@@ -554,7 +608,6 @@ function renderPlayWheShelfContainer(marks, numberColors, intervals, hotMarks, o
             margin-left: 6px;
         }
         
-        /* 3x3 Grid Layout */
         .top-marks-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -801,15 +854,12 @@ function renderPlayWheShelfContainer(marks, numberColors, intervals, hotMarks, o
     </style>
     
     <div class="shelf-container">
-        <!-- HOT MARKS & OVERDUE MARKS -->
         <div class="top-marks-container">
-            <!-- HOT MARKS - 3x3 Grid -->
             <div class="top-marks-box">
                 <div class="box-title">🔥 HOT MARKS <br><span class="badge">Last 6 Weeks</span></div>
                 <div class="top-marks-grid">
     `;
 
-    // HOT MARKS - 3x3 Grid (6 items)
     if (hotMarks && hotMarks.length > 0) {
         for (let i = 0; i < 6; i++) {
             if (i < hotMarks.length) {
@@ -839,20 +889,17 @@ function renderPlayWheShelfContainer(marks, numberColors, intervals, hotMarks, o
                 </div>
             </div>
             
-        <!-- OVERDUE MARKS - 3x3 Grid -->
             <div class="top-marks-box">
                 <div class="box-title">⏰ OVERDUE MARKS <br><span class="badge">${overdueBadgeText}</span></div>
                 <div class="top-marks-grid">
     `;
 
-    // OVERDUE MARKS - 3x3 Grid
     if (overdueMarks && overdueMarks.length > 0) {
         for (let i = 0; i < 6; i++) {
             if (i < overdueMarks.length) {
                 const m = overdueMarks[i];
                 const numStr = String(m.num).padStart(2, '0');
                 const ballColor = numberColors[numStr] || '#ffffff';
-                // Color coding: red >= 42 days, orange >= 35 days, blue >= 28 days, green < 28 days
                 const bgColor = m.days >= 42 ? '#ff453a' : (m.days >= 35 ? '#ff9f0a' : (m.days >= 28 ? '#007AFF' : '#32d74b'));
                 const weeks = Math.floor(m.days / 7);
                 const days = m.days % 7;
@@ -881,16 +928,13 @@ function renderPlayWheShelfContainer(marks, numberColors, intervals, hotMarks, o
             </div>
         </div>
         
-        <!-- SOLID BLACK LINE -->
         <hr class="shelf-divider">
         
-        <!-- SHELF MARKS HEADER -->
         <div class="shelf-header-bar">
             <span class="title">♠️ PlayWhe Shelf Marks</span>
             <span class="count">${sortedMarks.length} marks • ${sortedMarks.filter(m => m.days > (intervals[m.num] || 12)).length} due</span>
         </div>
         
-   <!-- SHELF MARKS SCROLLABLE TABLE -->
         <div class="shelf-scroll">
     `;
 
@@ -956,33 +1000,23 @@ function renderPlayWheShelfContainer(marks, numberColors, intervals, hotMarks, o
 
     html += `
         </div>
-        <div class="shelf-footer">PlayWhe Shelf Analysis • CodeWithGlasgow ©️ CWG Builds</div>
-        <div style="width:100%; height:2px; background:#000;"></div>
-    </div>
     `;
 
     return html;
 }
-///////////////////////////////////////////
 
 // =====================================
 // WHEWHE PICKS EVERY FRI-SAT-SUN - SMART CONTAINER
-// WITH COMBINED PROBABILITY ANALYSIS
-// All weekend draws combined for better statistical significance
 // ======================================
 function renderWheWheWeekendPicks(weeksData) {
   if (!weeksData || weeksData.length === 0) {
     return `<div style="background: #ffffff; border-radius: 12px; padding: 20px; border: 1px solid #dddddd; text-align:center; color:#999;">📊 No data available</div>`;
   }
 
-  // ====================================
-  // CONFIGURATION
-  // ====================================
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const slots = ["MOR", "MID", "NON", "EVE"];
   const weekendDays = ["Friday", "Saturday", "Sunday"];
   
-  // Spirit Emoji mapping
   const spiritEmoji = {
     1: "🔪", 2: "👵🏾", 3: "🚕", 4: "⚰️", 5: "👨🏾‍🦳", 6: "🤰🏽", 7: "🐗", 8: "🐯",
     9: "🐮", 10: "🐒", 11: "🦅", 12: "🤴🏽", 13: "🐸", 14: "💰", 15: "🤧", 16: "💃🏽",
@@ -1001,9 +1035,6 @@ function renderWheWheWeekendPicks(weeksData) {
     31: "Parson Wife", 32: "Shrimp", 33: "Spider", 34: "Blind Man", 35: "Big Snake", 36: "Donkey"
   };
 
-  // ====================================
-  // SORT WEEKS CHRONOLOGICALLY
-  // ====================================
   const sortedWeeks = [...weeksData].sort((a, b) => {
     let pa = a.startDate.split(" ");
     let pb = b.startDate.split(" ");
@@ -1019,29 +1050,20 @@ function renderWheWheWeekendPicks(weeksData) {
   const todayName = dayNames[todayIdx];
   const currentHour = now.getHours();
 
-  // ====================================
-  // SMART VISIBILITY CHECK
-  // ====================================
   function shouldShowContainer() {
-    const isMonday = todayName === "Monday";
-    const isTuesday = todayName === "Tuesday";
-    const isWednesday = todayName === "Wednesday";
     const isThursday = todayName === "Thursday";
     const isFriday = todayName === "Friday";
     const isSaturday = todayName === "Saturday";
     const isSunday = todayName === "Sunday";
     
     if (isThursday && currentHour < 18) return false;
-    if (isMonday || isTuesday || isWednesday) return false;
+    if (todayName === "Monday" || todayName === "Tuesday" || todayName === "Wednesday") return false;
     if (isThursday && currentHour >= 18) return true;
     if (isFriday || isSaturday || isSunday) return true;
     
     return false;
   }
 
-  // ====================================
-  // HELPER: GET DRAW FROM WEEK
-  // ====================================
   function getDraw(week, dayName, slot) {
     if (!week) return null;
     const day = week.days.find(d => d.dayName === dayName);
@@ -1067,9 +1089,6 @@ function renderWheWheWeekendPicks(weeksData) {
     return null;
   }
 
-  // ====================================
-  // CHECK IF DAY IS HOLIDAY
-  // ====================================
   function isHolidayDay(week, dayName) {
     if (!week) return true;
     const day = week.days.find(d => d.dayName === dayName);
@@ -1080,9 +1099,6 @@ function renderWheWheWeekendPicks(weeksData) {
     });
   }
 
-  // ====================================
-  // COLLECT HISTORICAL WEEKEND DRAWS
-  // ====================================
   function collectHistoricalWeekendDraws() {
     const weekendDraws = [];
     
@@ -1107,9 +1123,6 @@ function renderWheWheWeekendPicks(weeksData) {
     return weekendDraws;
   }
 
-  // ====================================
-  // GET COMBINED FREQUENCY ANALYSIS
-  // ====================================
   function getCombinedFrequency(weekendDraws) {
     const counts = {};
     for (let i = 1; i <= 36; i++) counts[i] = 0;
@@ -1124,9 +1137,6 @@ function renderWheWheWeekendPicks(weeksData) {
     return { counts, percentages, total };
   }
 
-  // ====================================
-  // GET ALL PLAYED NUMBERS FOR EACH DAY
-  // ====================================
   function getAllPlayedForDay(targetDay, weekendDraws) {
     const dayDraws = weekendDraws.filter(d => d.day === targetDay);
     const counts = {};
@@ -1144,9 +1154,6 @@ function renderWheWheWeekendPicks(weeksData) {
       }));
   }
 
-  // ====================================
-  // GET TOP MARKS - DISPLAY ONLY
-  // ====================================
   function getTopMarks(weekendDraws, combinedFrequency) {
     const numberStats = {};
     for (let i = 1; i <= 36; i++) {
@@ -1168,7 +1175,6 @@ function renderWheWheWeekendPicks(weeksData) {
           const daysAgo = Math.floor((now - stats.lastDate) / (1000 * 60 * 60 * 24));
           recencyScore = Math.max(0, 30 - daysAgo);
         }
-        // Score uses combined frequency internally but doesn't display it
         const combinedFreq = combinedFrequency.percentages[parseInt(num)] || 0;
         const totalScore = (stats.count * 2) + recencyScore + (combinedFreq * 0.5);
         return {
@@ -1186,37 +1192,27 @@ function renderWheWheWeekendPicks(weeksData) {
     return scored;
   }
 
-  // ====================================
-  // GET CURRENT WEEK DRAWS
-  // ====================================
   function getCurrentWeekDraw(dayName, slot) {
     return getDraw(currentWeek, dayName, slot);
   }
 
-  // ====================================
-  // GENERATE TOP 4 PICKS PER DRAW SLOT WITH COMBINED PROBABILITY
-  // ====================================
   function generatePicksForSlots(weekendDraws, combinedFrequency) {
     const picks = {};
     
-    // Helper: Get the "anchor" number from previous week for a given day/slot
     function getAnchorNumber(targetDay, targetSlot) {
       return getDraw(previousWeek, targetDay, targetSlot);
     }
     
-    // Helper: Get followers from 1/16 chart
     function getChart16Followers(num) {
       if (!num) return [];
       return CHART_1_16[num] || [];
     }
     
-    // Helper: Get followers from 1/8 chart
     function getChart8Followers(num) {
       if (!num) return [];
       return CHART_1_8[num] || [];
     }
     
-    // Helper: Find numbers that historically follow a given number
     function getHistoricalFollowers(anchorNum, targetDay, targetSlot) {
       const followers = {};
       for (let i = 1; i <= 36; i++) followers[i] = 0;
@@ -1237,42 +1233,31 @@ function renderWheWheWeekendPicks(weeksData) {
       return followers;
     }
     
-    // Helper: Calculate combined probability for a number
     function calculateCombinedProbability(num, slotDraws, historicalFollowers, chart16Followers, chart8Followers, dayDraws) {
       let score = 0;
       
-      // 1. Historical frequency for this slot (15%)
       const slotTotal = slotDraws.length;
       const slotCount = slotDraws.filter(d => d.num === num).length;
       const freqWeight = slotTotal > 0 ? (slotCount / slotTotal) * 15 : 0;
       score += freqWeight;
       
-      // 2. Combined weekend frequency (20%)
       const combinedFreq = combinedFrequency.percentages[num] || 0;
       score += (combinedFreq / 100) * 20;
       
- // 3. Historical followers of anchor (20%)
       const followCount = historicalFollowers[num] || 0;
       const totalFollowers = Object.values(historicalFollowers).reduce((a, b) => a + b, 0);
       const followWeight = totalFollowers > 0 ? (followCount / totalFollowers) * 20 : 0;
       score += followWeight;
       
-      // 4. 1/16 Chart probability (15%)
       if (chart16Followers.includes(num)) score += 15;
-      
-      // 5. 1/8 Chart probability (10%)
       if (chart8Followers.includes(num)) score += 10;
-      
-      // 6. Chart overlap bonus (5%)
       if (chart16Followers.includes(num) && chart8Followers.includes(num)) score += 5;
       
-      // 7. Recent performance (10%)
       const recentDraws = slotDraws.slice(-8 * 4);
       const recentCount = recentDraws.filter(d => d.num === num).length;
       const recentWeight = recentDraws.length > 0 ? (recentCount / recentDraws.length) * 10 : 0;
       score += recentWeight;
       
-      // 8. Day-specific bonus (5%)
       const dayTotal = dayDraws.length;
       const dayCount = dayDraws.filter(d => d.num === num).length;
       const dayWeight = dayTotal > 0 ? (dayCount / dayTotal) * 5 : 0;
@@ -1281,7 +1266,6 @@ function renderWheWheWeekendPicks(weeksData) {
       return Math.round(score);
     }
     
-    // For each weekend day
     for (const day of weekendDays) {
       const dayDraws = weekendDraws.filter(d => d.day === day);
       const slotPicks = {};
@@ -1323,17 +1307,11 @@ function renderWheWheWeekendPicks(weeksData) {
     return picks;
   }
 
-  // ====================================
-  // CHECK IF A PICK MATCHED THE ACTUAL DRAW
-  // ====================================
   function checkMatch(pickNum, actualDraw) {
     if (!actualDraw) return null;
     return pickNum === actualDraw;
   }
 
-  // ====================================
-  // GET LEAVING AND MEETING NUMBERS
-  // ====================================
   function getLeavingMeeting() {
     let leavingNumber = null;
     let leavingSlot = null;
@@ -1342,7 +1320,6 @@ function renderWheWheWeekendPicks(weeksData) {
     let leavingDayIdx = -1;
     let leavingSlotIdx = -1;
     
-    // Find leaving number (most recent draw in current week)
     for (let d = todayIdx; d >= 0; d--) {
       for (let s = slots.length - 1; s >= 0; s--) {
         const draw = getDraw(currentWeek, dayNames[d], slots[s]);
@@ -1360,7 +1337,6 @@ function renderWheWheWeekendPicks(weeksData) {
       if (leavingNumber) break;
     }
     
-    // Find meeting number (next slot after leaving from previous week)
     let meetingNumber = null;
     let meetingSlot = null;
     let meetingDay = null;
@@ -1383,7 +1359,6 @@ function renderWheWheWeekendPicks(weeksData) {
         const targetDay = dayNames[nextDayIdx];
         const targetSlot = slots[nextSlotIdx];
         
-        // First try previous week
         meetingNumber = getDraw(previousWeek, targetDay, targetSlot);
         if (meetingNumber) {
           meetingDay = targetDay;
@@ -1391,7 +1366,6 @@ function renderWheWheWeekendPicks(weeksData) {
           const result = getDrawWithDate(previousWeek, targetDay, targetSlot);
           if (result) meetingDate = result.date;
         } else {
-          // Try current week as fallback
           const draw = getDraw(currentWeek, targetDay, targetSlot);
           if (draw) {
             meetingNumber = draw;
@@ -1407,9 +1381,6 @@ function renderWheWheWeekendPicks(weeksData) {
     return { leavingNumber, leavingSlot, leavingDay, leavingDate, meetingNumber, meetingSlot, meetingDay, meetingDate };
   }
 
-  // ====================================
-  // GET UNDER TODAY (Previous Week's Draws)
-  // ====================================
   function getUnderToday() {
     const underToday = {};
     for (const day of weekendDays) {
@@ -1422,10 +1393,6 @@ function renderWheWheWeekendPicks(weeksData) {
     }
     return underToday;
   }
-
-  // ====================================
-  // BUILD THE CONTAINER HTML
-  // ====================================
   
   const showContainer = shouldShowContainer();
   
@@ -1455,7 +1422,6 @@ function renderWheWheWeekendPicks(weeksData) {
   const leavingMeeting = getLeavingMeeting();
   const underToday = getUnderToday();
   
-  // Get top 4 most frequent numbers overall (for display only)
   const topOverall = Object.entries(combinedFrequency.counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
@@ -1475,7 +1441,6 @@ function renderWheWheWeekendPicks(weeksData) {
     defaultDayIndex = weekendDays.indexOf(todayName);
   }
   
-  // Generate carousel HTML
   let carouselSlides = '';
   for (let d = 0; d < weekendDays.length; d++) {
     const day = weekendDays[d];
@@ -1495,7 +1460,6 @@ function renderWheWheWeekendPicks(weeksData) {
             </div>
           </div>
           
-          <!-- UNDER TODAY -->
           <div style="margin-bottom: 6px; padding: 4px; background: #f5f5f5; border-radius: 6px; border: 1px solid #e0e0e0;">
             <div style="font-size: 8px; font-weight: 700; color: #000; text-align: center; margin-bottom: 2px;">📅 UNDER TODAY</div>
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;">
@@ -1510,7 +1474,6 @@ function renderWheWheWeekendPicks(weeksData) {
             </div>
           </div>
           
-          <!-- LEAVING & MEETING -->
           <div style="display: flex; justify-content: center; gap: 16px; padding: 4px; background: #fafafa; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 6px;">
             <div style="display: flex; align-items: center; gap: 4px;">
               <span style="color: #58a6ff; font-weight: 800; font-size: 10px;">🔵 LEAVING</span>
@@ -1524,7 +1487,6 @@ function renderWheWheWeekendPicks(weeksData) {
             </div>
           </div>
           
-          <!-- TOP 4 PICKS -->
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
     `;
 
@@ -1602,11 +1564,9 @@ function renderWheWheWeekendPicks(weeksData) {
     `;
   }
 
-  // Build HTML
   let html = `
     <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #dddddd; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 5px;">
       
-      <!-- HEADER -->
       <div style="text-align: center; margin-bottom: 5px;">
         <div style="font-size: 16px; font-weight: 900; color: #000; letter-spacing: 0.5px;">🏆 WHEWHE PICKS EVERY FRI-SAT-SUN 🏆</div>
 
@@ -1623,14 +1583,10 @@ function renderWheWheWeekendPicks(weeksData) {
       </div>
     `;
   } else {
-    // ====================================
-    // TOP SECTION: Top Overall Numbers (Combined)
-    // ====================================
     html += `
-      <!-- TOP OVERALL NUMBERS -->
-      <div style="margin-bottom: 12px;">
+      <div style="margin-bottom: 6px;">
         <div style="font-size: 11px; font-weight: 800; color: #000; text-align: center; margin-bottom: 3px; background: #f0f0f0; padding: 4px; border-radius: 4px;">
-          📊 TOP OVERALL WEEKEND NUMBERS
+          ⚜️ TOP OVERALL WEEKEND NUMBERS
         </div>
         <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-height: 60px; overflow-y: auto;">
     `;
@@ -1652,9 +1608,6 @@ function renderWheWheWeekendPicks(weeksData) {
       </div>
     `;
 
-    // ====================================
-    // ALL PLAYED NUMBERS PER DAY
-    // ====================================
     html += `
       <div style="margin-bottom: 6px;">
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
@@ -1699,9 +1652,6 @@ function renderWheWheWeekendPicks(weeksData) {
       </div>
     `;
 
-    // ====================================
-    // TOP MARKS SECTION 
-    // ====================================
     html += `
       <div style="margin-bottom: 4px;">
         <div style="font-size: 11px; font-weight: 800; color: #000; text-align: center; margin-bottom: 4px; background: #f0f0f0; padding: 4px; border-radius: 4px;">
@@ -1743,32 +1693,24 @@ function renderWheWheWeekendPicks(weeksData) {
       </div>
     `;
 
-    // ====================================
-    // SOLID BLACK LINE
-    // ====================================
     html += `
       <hr style="border: none; border-top: 3px solid #000000; margin: 8px 0;">
     `;
 
-    // ====================================
-    // BOTTOM SECTION: Scrollable Carousel
-    // ====================================
     html += `
-      <div style="margin-top: 8px;">
+      <div style="margin-top: 4px;">
         <div style="font-size: 11px; font-weight: 800; color: #000; text-align: center; margin-bottom: 6px; background: #f0f0f0; padding: 4px; border-radius: 4px;">
           ♠️ TOP 4 PICKS PER DRAW ♠️
         </div>
         <div style="font-size: 8px; color: #666; text-align: center; margin-bottom: 4px;">
-          🟢 = Match • ⚪ = Not Played Yet • ⚫ = No Match • <span style="color: #ff9d00; font-weight: 700;">← Swipe →</span>
+  🟢 = Match • ⚪ = Not Played Yet • ⚫ = No Match • <span style="color: #ff9d00; font-weight: 700;">← Swipe →</span>
         </div>
         
-        <!-- Carousel Container -->
         <div style="position: relative; overflow: hidden;">
           <div id="weekendCarousel" style="display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; gap: 8px; padding: 4px 0; scrollbar-width: none;">
             ${carouselSlides}
           </div>
           
-          <!-- Carousel Dots -->
           <div style="display: flex; justify-content: center; gap: 6px; margin-top: 4px;">
             ${weekendDays.map((day, idx) => `
               <span class="carousel-dot" data-index="${idx}" onclick="goToWeekendSlide(${idx})" style="width: 10px; height: 10px; background: ${idx === defaultDayIndex ? '#ff9d00' : '#ccc'}; border-radius: 50%; cursor: pointer; display: inline-block; transition: all 0.3s ease;"></span>
@@ -1778,9 +1720,6 @@ function renderWheWheWeekendPicks(weeksData) {
       </div>
     `;
 
-    // ====================================
-    // CAROUSEL JAVASCRIPT
-    // ====================================
     html += `
       <script>
         (function() {
@@ -1855,9 +1794,6 @@ function renderWheWheWeekendPicks(weeksData) {
       </script>
     `;
 
-    // ====================================
-    // LEGEND 
-    // ====================================
     html += `
       <div style="display: flex; justify-content: center; gap: 12px; font-size: 7px; color: #666; padding: 4px; background: #f5f5f5; border-radius: 4px; flex-wrap: wrap; margin-top: 4px;">
         <span><span style="display: inline-block; width: 10px; height: 10px; background: #d4edda; border: 1px solid #28a745; border-radius: 2px; vertical-align: middle;"></span> MATCH</span>
@@ -1868,9 +1804,6 @@ function renderWheWheWeekendPicks(weeksData) {
     `;
   }
 
-  // ====================================
-  // FOOTER
-  // ====================================
   html += `
       <div style="margin-top: 3px; padding-top: 6px; border-top: 1px solid #dddddd; display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap;">
         <span style="font-size: 7px; color: #666;">⚡ WheWhe Weekend Picks • CodeWithGlasgow ©️ CWG Builds</span>
@@ -1880,27 +1813,551 @@ function renderWheWheWeekendPicks(weeksData) {
 
   return html;
 }
-///////////////////////////////////////////
+
+// ======================================
+// CAROUSEL RENDER FUNCTIONS FOR PLAY WHE
+// ======================================
+function renderCarouselWithCurrentPW(weeks, containerId) {
+  if (!weeks || weeks.length === 0) return "";
+  
+  // Get all weeks - we'll put ALL weeks in the carousel including current
+  const allWeeks = [...weeks];
+  const currentWeek = allWeeks[allWeeks.length - 1];
+  const previousWeeks = allWeeks.slice(0, -1);
+  
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "N/A";
+    const d = new Date(dateStr);
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
+
+  // Build ALL weeks as carousel slides (including current week as the last slide)
+  // Reverse previous weeks for display
+  const allSlidesHtml = previousWeeks.reverse().map((wk, idx) => {
+    const weekNum = previousWeeks.length - idx;
+    
+    const startLbl = formatDate(wk.startDate);
+    const endLbl = wk.endDate ? formatDate(wk.endDate) : (() => {
+      const sDate = new Date(wk.startDate);
+      const eDate = new Date(sDate);
+      eDate.setDate(sDate.getDate() + 6);
+      return formatDate(eDate);
+    })();
+
+    let tableHtml = buildTable([wk], "P2WHE", currentWeek);
+    tableHtml = tableHtml.replace(/<div class="carousel-table-header"><span>(CURRENT|PREVIOUS) WEEK<\/span><\/div>/, 
+      `<div class="carousel-table-header"><span>⌛ WEEK ${weekNum}</span><span>${startLbl} - ${endLbl}</span></div>`);
+      
+    return `<div class="carousel-slide">${tableHtml}</div>`;
+  }).join('');
+
+  // Build CURRENT WEEK as the LAST slide in the carousel
+  const currentStartDate = formatDate(currentWeek.startDate);
+  const currentEndDate = currentWeek.endDate ? formatDate(currentWeek.endDate) : (() => {
+    const sDate = new Date(currentWeek.startDate);
+    const eDate = new Date(sDate);
+    eDate.setDate(sDate.getDate() + 6);
+    return formatDate(eDate);
+  })();
+
+  let currentTableHtml = buildTable([currentWeek], "P2WHE", currentWeek);
+  currentTableHtml = currentTableHtml.replace(/<div class="carousel-table-header"><span>CURRENT WEEK<\/span><\/div>/, 
+    `<div class="carousel-table-header carousel-current-header"><span>⚜️ CURRENT WEEK</span><span>${currentStartDate} - ${currentEndDate}</span><span>LIVE RESULTS</span></div>`);
+  
+  const currentSlideHtml = `<div class="carousel-slide">${currentTableHtml}</div>`;
+  
+  // Combine all slides - previous weeks + current week as the last slide
+  const allSlides = allSlidesHtml + currentSlideHtml;
+  
+  const totalSlides = allWeeks.length;
+  
+  const carouselHtml = `
+  <!-- PLAYWHE DAY TO DAY CHART HEADER -->
+  <div style="text-align: center; margin-bottom: 0px; position: relative; overflow: hidden;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 48px; font-weight: 900; color: rgba(0,0,0,0.04); letter-spacing: 8px; pointer-events: none; white-space: nowrap; z-index: 0;">
+      CODEWITHGLASGOW
+    </div>
+    <div style="font-size: 18px; font-weight: 900; color: #000000; letter-spacing: 1px; position: relative; z-index: 1;">
+      ♠️ PLAY WHE DAY TO DAY CHART
+    </div>
+    <div style="font-size: 10px; color: #666666; position: relative; z-index: 1;">${new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</div>
+  </div>
+  
+  <div class="carousel-container" id="${containerId}-carousel" style="margin-bottom: 8px; padding: 4px 0;">
+    <div class="carousel-track" id="${containerId}-track" style="gap: 12px;">
+      ${allSlides}
+    </div>
+    <div class="carousel-indicators" id="${containerId}-dots" style="margin-top: 8px;"></div>
+  </div>
+  <div style="text-align:center; padding:3px 3px; opacity:0.15; font-weight:900; letter-spacing:3px; pointer-events:none; user-select:none;"><p style="margin:0; font-size:9px;">CODEWITHGLASGOW 🌐 bit.ly/CWGCharts</p></div>
+  <script>initPrevCarousel('${containerId}', ${totalSlides});</script>
+  `;
+  
+  return carouselHtml + currentTableHtml;
+}
+
+// ======================================
+// PLAY WHE LINE CHART MAPPING
+// ======================================
+function buildLineTable(weeks) {
+  const numToLineMap = {
+    1:1, 10:1, 19:1, 28:1, 2:2, 11:2, 20:2, 29:2, 3:3, 12:3, 21:3, 30:3,
+    4:4, 13:4, 22:4, 31:4, 5:5, 14:5, 23:5, 32:5, 6:6, 15:6, 24:6, 33:6,
+    7:7, 16:7, 25:7, 34:7, 8:8, 17:8, 26:8, 35:8, 9:9, 18:9, 27:9, 36:9
+  };
+
+  function isDrawTimePassed(weekStartDate, dayName, slot) {
+    if (!weekStartDate) return false;
+    const parts = weekStartDate.split(" ");
+    const monthMap = {"Jan":0,"Feb":1,"Mar":2,"Apr":3,"May":4,"Jun":5,"Jul":6,"Aug":7,"Sep":8,"Oct":9,"Nov":10,"Dec":11};
+    const startDate = new Date(parts[2], monthMap[parts[1]], parseInt(parts[0]));
+    const dayIndex = daysOfWeek.indexOf(dayName);
+    if (dayIndex === -1) return false;
+    const drawDate = new Date(startDate);
+    drawDate.setDate(startDate.getDate() + dayIndex);
+    const timeOffsets = { "MOR": 9, "MID": 12, "NON": 15, "EVE": 18 };
+    drawDate.setHours(timeOffsets[slot] || 12);
+    return drawDate < new Date();
+  }
+
+  function isHolidayDay(weekStartDate, day, dayIndex) {
+    if (!day) return false;
+    const allSlotsEmpty = timeOrder.every(slot => {
+      const val = day.draws[slot];
+      return !val || val === "-" || val === "PENDING";
+    });
+    if (!allSlotsEmpty) return false;
+    return isDrawTimePassed(weekStartDate, day.dayName, "EVE");
+  }
+
+  let isAfterEvening = false;
+  let highlightDayName = todayName;
+  const currentWeekData = weeks.find(wk => wk.isCurrentWeek);
+  
+  if (currentWeekData) {
+    let lastCompletedDayIndex = -1;
+    for (let i = 0; i < daysOfWeek.length; i++) {
+      const dayData = currentWeekData.days.find(d => d.dayName === daysOfWeek[i]);
+      if (dayData) {
+        const hasEveDraw = dayData.draws.EVE && dayData.draws.EVE !== "-" && dayData.draws.EVE !== "PENDING";
+        const isHoliday = isHolidayDay(currentWeekData.startDate, dayData, i);
+        
+        if (hasEveDraw || isHoliday) {
+          lastCompletedDayIndex = i;
+          if (hasEveDraw || isHoliday) {
+            isAfterEvening = true;
+          }
+        }
+      }
+    }
+    
+    if (lastCompletedDayIndex !== -1) {
+      if (isAfterEvening) {
+        highlightDayName = daysOfWeek[(lastCompletedDayIndex + 1) % 7];
+      } else {
+        highlightDayName = daysOfWeek[lastCompletedDayIndex];
+      }
+    }
+  }
+
+  return weeks.map(wk => {
+    let headerRange = wk.isCurrentWeek ? "CURRENT WEEK" : "PREVIOUS WEEK";
+    if (wk.startDate) {
+      let start = new Date(wk.startDate);
+      if (!isNaN(start.getTime())) {
+        let end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+        let opt = { day: 'numeric', month: 'short', year: '2-digit' };
+        headerRange += ` (${start.toLocaleDateString('en-GB', opt)} - ${end.toLocaleDateString('en-GB', opt)})`;
+      }
+    }
+
+    return `
+    <div class="carousel-table-wrapper">
+      <div class="carousel-table-header" style="background: #1e293b; color: #ff9d00;">
+ <span>${headerRange.toUpperCase()} </span>
+      </div>
+      <table class="carousel-table">
+        <tr><th>DAY</th><th>MOR</th><th>MID</th><th>NON</th><th>EVE</th></tr>
+        ${wk.days.map((d, index) => {
+          let isHighlighted = (d.dayName === highlightDayName);
+          
+          let dayDisplay = d.dayName.slice(0,3).toUpperCase();
+          if (wk.startDate) {
+            let start = new Date(wk.startDate);
+            if (!isNaN(start.getTime())) {
+              let currentDayDate = new Date(start.getTime() + index * 24 * 60 * 60 * 1000);
+              dayDisplay += ` ${currentDayDate.getDate()}`;
+            }
+          }
+          
+          const allSlotsEmpty = timeOrder.every(slot => {
+            const val = d.draws[slot];
+            return !val || val === "-" || val === "PENDING";
+          });
+          
+          if (!wk.isCurrentWeek && allSlotsEmpty) {
+            return `<tr class="${isHighlighted ? 'carousel-current-day' : ''}">
+              <td class="carousel-day-label">${(isHighlighted && isAfterEvening) ? "▶ " : ""}${dayDisplay}</td>
+              <td colspan="4" style="text-align: center; padding: 8px; background: transparent;">
+                <span style="color: #ff453a; font-weight: bold; font-size: 14px;">🇹🇹 HOLIDAY 🇹🇹</span>
+              </td>
+            </tr>`;
+          }
+          
+          if (wk.isCurrentWeek && allSlotsEmpty) {
+            const isEvePassed = isDrawTimePassed(wk.startDate, d.dayName, "EVE");
+            if (isEvePassed) {
+              return `<tr class="${isHighlighted ? 'carousel-current-day' : ''}">
+                <td class="carousel-day-label">${(isHighlighted && isAfterEvening) ? "▶ " : ""}${dayDisplay}</td>
+                <td colspan="4" style="text-align: center; padding: 8px; background: transparent;">
+                  <span style="color: #ff453a; font-weight: bold; font-size: 14px;">🇹🇹 HOLIDAY 🇹🇹</span>
+                </td>
+              </tr>`;
+            }
+          }
+
+          return `<tr class="${isHighlighted ? 'carousel-current-day' : ''}">
+            <td class="carousel-day-label">${(isHighlighted && isAfterEvening) ? "▶ " : ""}${dayDisplay}</td>
+            ${timeOrder.map(s => {
+              let val = String(d.draws[s]).trim();
+              if (val === "-" || val === "PENDING" || val === "") return `<td>...</td>`;
+              
+              let match = val.match(/^(\d+)/);
+              if (match) {
+                let num = parseInt(match[1], 10);
+                let lineId = numToLineMap[num] || "?";
+                let lineColors = ["#000"];
+                let color = lineColors[(lineId - 1) % lineColors.length] || "#fff";
+                return `<td style="color:${color}; font-weight:900;">${lineId}L</td>`;
+              }
+              return `<td>...</td>`;
+            }).join("")}
+          </tr>`;
+        }).join("")}
+      </table>
+    </div>`;
+  }).join('<div style="text-align:center; padding:3px 3px; opacity:0.15; font-weight:900; letter-spacing:3px; pointer-events:none; user-select:none;"><div style="display: flex; justify-content: center; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="font-size:9px;">CODEWITHGLASGOW 🌐 LINE CHART</span></div></div>');
+}
+
+// ====================================
+function buildTable(weeks, gameType, currentWeekDataParam = null) {
+    console.log(`🔨 buildTable called with gameType: ${gameType}, weeks: ${weeks?.length || 0}`);
+    
+    function isDrawTimePassed(weekStartDate, dayName, slot) {
+        if (!weekStartDate) return false;
+        const parts = weekStartDate.split(" ");
+        const monthMap = {"Jan":0,"Feb":1,"Mar":2,"Apr":3,"May":4,"Jun":5,"Jul":6,"Aug":7,"Sep":8,"Oct":9,"Nov":10,"Dec":11};
+        const startDate = new Date(parts[2], monthMap[parts[1]], parseInt(parts[0]));
+        const dayIndex = daysOfWeek.indexOf(dayName);
+        if (dayIndex === -1) return false;
+        const drawDate = new Date(startDate);
+        drawDate.setDate(startDate.getDate() + dayIndex);
+        const timeOffsets = { "MOR": 9, "MID": 12, "NON": 15, "EVE": 18 };
+        drawDate.setHours(timeOffsets[slot] || 12);
+        return drawDate < new Date();
+    }
+
+    function isHolidayDay(weekStartDate, day, dayIndex) {
+        if (!day) return false;
+        const allSlotsEmpty = timeOrder.every(slot => {
+            const val = day.draws[slot];
+            return !val || val === "-" || val === "PENDING";
+        });
+        if (!allSlotsEmpty) return false;
+        return isDrawTimePassed(weekStartDate, day.dayName, "EVE");
+    }
+
+    let currentWeekData = currentWeekDataParam || weeks.find(wk => wk.isCurrentWeek);
+    if (!currentWeekData && weeks.length > 0) {
+        currentWeekData = weeks[weeks.length - 1];
+    }
+    console.log(`📅 Current week data: ${currentWeekData ? 'Found' : 'Not found'}`);
+    
+    let isAfterEvening = false;
+    let highlightDayName = todayName;
+    
+    if (currentWeekData) {
+        let lastCompletedDayIndex = -1;
+        for (let i = 0; i < daysOfWeek.length; i++) {
+            const dayData = currentWeekData.days.find(d => d.dayName === daysOfWeek[i]);
+            if (dayData) {
+                const hasEveDraw = dayData.draws.EVE && dayData.draws.EVE !== "-" && dayData.draws.EVE !== "PENDING";
+                const isHoliday = isHolidayDay(currentWeekData.startDate, dayData, i);
+                
+                if (hasEveDraw || isHoliday) {
+                    lastCompletedDayIndex = i;
+                    if (hasEveDraw || isHoliday) {
+                        isAfterEvening = true;
+                    }
+                }
+            }
+        }
+        
+        if (lastCompletedDayIndex !== -1) {
+            if (isAfterEvening) {
+                highlightDayName = daysOfWeek[(lastCompletedDayIndex + 1) % 7];
+            } else {
+                highlightDayName = daysOfWeek[lastCompletedDayIndex];
+            }
+        }
+        console.log(`🌟 Highlight day: ${highlightDayName}, isAfterEvening: ${isAfterEvening}`);
+    }
+
+    function formatDisplayValue(val) {
+        if (!val || val === "-" || val === "PENDING") return val || "";
+        const strVal = String(val).trim();
+        return strVal;
+    }
+
+    const result = weeks.map(wk => {
+        let headerRange = wk.isCurrentWeek ? "CURRENT WEEK" : "PREVIOUS WEEK";
+        if (wk.startDate) {
+            let start = new Date(wk.startDate);
+            if (!isNaN(start.getTime())) {
+                let end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+                let opt = { day: 'numeric', month: 'short', year: '2-digit' };
+                headerRange += ` (${start.toLocaleDateString('en-GB', opt)} - ${end.toLocaleDateString('en-GB', opt)})`;
+            }
+        }
+
+        return `
+        <div class="carousel-table-wrapper">
+            <div class="carousel-table-header"><span>${headerRange.toUpperCase()} </span></div>
+            <table class="carousel-table">
+                <tr><th>DAY</th><th>MOR</th><th>MID</th><th>NON</th><th>EVE</th></tr>
+                ${wk.days.map((d, index) => {
+                    let isHighlighted = (d.dayName === highlightDayName);
+                    
+                    let dayDisplay = d.dayName.slice(0,3).toUpperCase();
+                    if (wk.startDate) {
+                        let start = new Date(wk.startDate);
+                        if (!isNaN(start.getTime())) {
+                            let currentDayDate = new Date(start.getTime() + index * 24 * 60 * 60 * 1000);
+                            dayDisplay += ` ${currentDayDate.getDate()}`;
+                        }
+                    }
+                    
+                    const allSlotsEmpty = timeOrder.every(slot => {
+                        const val = d.draws[slot];
+                        return !val || val === "-" || val === "PENDING";
+                    });
+                    
+                    if (!wk.isCurrentWeek && allSlotsEmpty) {
+                        return `<tr class="${isHighlighted ? 'carousel-current-day' : ''}">
+                            <td class="carousel-day-label">${(isHighlighted && isAfterEvening) ? "▶ " : ""}${dayDisplay}</td>
+                            <td colspan="4" style="text-align: center; padding: 8px; background: rgba(0,0,0,0.2);">
+                                <span style="color: #ff453a; font-weight: bold; font-size: 14px;">🇹🇹 HOLIDAY 🇹🇹</span>
+                            </td>
+                        </tr>`;
+                    }
+                    
+                    if (wk.isCurrentWeek && allSlotsEmpty) {
+                        const isEvePassed = isDrawTimePassed(wk.startDate, d.dayName, "EVE");
+                        if (isEvePassed) {
+                            return `<tr class="${isHighlighted ? 'carousel-current-day' : ''}">
+                                <td class="carousel-day-label">${(isHighlighted && isAfterEvening) ? "▶ " : ""}${dayDisplay}</td>
+                                <td colspan="4" style="text-align: center; padding: 8px; background: rgba(0,0,0,0.2);">
+                                    <span style="color: #ff453a; font-weight: bold; font-size: 14px;">🇹🇹 HOLIDAY 🇹🇹</span>
+                                </td>
+                            </tr>`;
+                        }
+                    }
+
+                    return `<tr class="${isHighlighted ? 'carousel-current-day' : ''}">
+                        <td class="carousel-day-label">${(isHighlighted && isAfterEvening) ? "▶ " : ""}${dayDisplay}</td>
+                        ${timeOrder.map(s => {
+                            let val = d.draws[s];
+                            let displayVal = formatDisplayValue(val);
+                            if (displayVal === "-" || displayVal === "PENDING" || !displayVal) {
+                                displayVal = "...";
+                            }
+                            return `<td>${displayVal}</td>`;
+                        }).join("")}
+                    </tr>`;
+                }).join("")}
+            </table>
+        </div>`;
+    }).join('');
+    
+    console.log(`✅ buildTable complete for ${gameType}`);
+    return result;
+}
+
+// ======================================
+// UNIFIED CAROUSEL CONTAINER - PLAY WHE, LINE CHART, SHELF CHART
+// WITH TABS BELOW EACH CHART PANEL
+// ====================================
+function renderUnifiedCarouselContainer(weeksData) {
+    if (!weeksData || weeksData.length === 0) {
+        return '<div style="background: #ffffff; border-radius: 12px; padding: 20px; border: 1px solid #dddddd; text-align:center; color:#999;">❌ No data available</div>';
+    }
+
+    console.log("🔄 renderUnifiedCarouselContainer called, weeksData length:", weeksData.length);
+    
+    const containerId = 'unified-carousel-' + Date.now();
+    
+    const pwWeeks = JSON.parse(JSON.stringify(weeksData.slice(-41)));
+    const lineWeeks = JSON.parse(JSON.stringify(weeksData.slice(-41)));
+
+    const playWheCarousel = renderCarouselWithCurrentPW(pwWeeks, containerId + '-pw');
+    const lineChartCarousel = renderLineChartCarousel(lineWeeks, containerId + '-line');
+    const shelfMarksHTML = renderShelfContainer(weeksData);
+
+    function cleanCarouselHTML(html) {
+        return html.replace(/<!-- PLAYWHE DAY TO DAY CHART HEADER -->[\s\S]*?<\/div>\s*<div class="carousel-container"/, '<div class="carousel-container"')
+                   .replace(/<!-- LINE CHART HEADER -->[\s\S]*?<\/div>\s*<div class="carousel-container"/, '<div class="carousel-container"');
+    }
+
+    return `
+    <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #dddddd; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin: 4px 0; position: relative; overflow: hidden;">
+        
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 48px; font-weight: 900; color: rgba(0,0,0,0.03); letter-spacing: 8px; pointer-events: none; white-space: nowrap; z-index: 0;">
+            CODEWITHGLASGOW
+        </div>
+        
+        <div id="unified-header-${containerId}" style="text-align: center; margin-bottom: 12px; position: relative; z-index: 1;">
+            <div style="font-size: 18px; font-weight: 900; color: #000000; letter-spacing: 1px;">♠️ PLAY WHE DAY TO DAY CHART</div>
+            <div style="font-size: 10px; color: #666666; margin-top: 2px;">${new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</div>
+        </div>
+        
+        <!-- Carousel Panels -->
+        <div id="unified-carousel-content-${containerId}" style="position: relative; z-index: 1;">
+            <div id="unified-carousel-pw-${containerId}" class="unified-carousel-panel" style="display: block;">${cleanCarouselHTML(playWheCarousel)}</div>
+            <div id="unified-carousel-line-${containerId}" class="unified-carousel-panel" style="display: none;">${cleanCarouselHTML(lineChartCarousel)}</div>
+            <div id="unified-carousel-shelf-${containerId}" class="unified-carousel-panel" style="display: none;">${shelfMarksHTML}</div>
+        </div>
+<br>
+     <div style="width:100%; height:2px; background:#000;"></div>
+
+   <!-- TABS BELOW THE CHART PANELS -->
+        <div style="display: flex; gap: 6px; margin-top: 12px; position: relative; z-index: 1; justify-content: center; flex-wrap: wrap;">
+            <button class="unified-tab-btn-${containerId}" data-tab="pw" onclick="switchUnifiedTab('${containerId}', 'pw')" style="background: #000000; color: #ffffff; border: none; padding: 8px 14px; border-radius: 20px; font-weight: 800; font-size: 11px; cursor: pointer; transition: all 0.3s ease;">♦️PLAY WHE</button>
+            <button class="unified-tab-btn-${containerId}" data-tab="line" onclick="switchUnifiedTab('${containerId}', 'line')" style="background: #e0e0e0; color: #666666; border: none; padding: 8px 8px; border-radius: 20px; font-weight: 800; font-size: 11px; cursor: pointer; transition: all 0.3s ease;">♦️LINE CHART</button>
+            <button class="unified-tab-btn-${containerId}" data-tab="shelf" onclick="switchUnifiedTab('${containerId}', 'shelf')" style="background: #e0e0e0; color: #666666; border: none; padding: 8px 8px; border-radius: 20px; font-weight: 800; font-size: 11px; cursor: pointer; transition: all 0.3s ease;">♠️SHELF CHART</button>
+        </div>
+        
+        <div style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #dddddd; text-align: center;">
+            <span style="font-size: 7px; color: #666;">⚡ Day to Day Charts • Shelf Analysis • CodeWithGlasgow ©️ CWG Builds</span>
+        </div>
+        
+        <script>
+            window.switchUnifiedTab = function(containerId, tab) {
+                var tabTitles = {
+                    pw: '♠️ PLAY WHE DAY TO DAY CHART',
+                    line: '♠️ PLAY WHE LINE CHART MAPPING',
+                    shelf: '♠️ PLAY WHE STATS & SHELF MARKS'
+                };
+                
+                var header = document.getElementById('unified-header-' + containerId);
+                if (header) {
+                    var titleDiv = header.querySelector('div');
+                    if (titleDiv) titleDiv.textContent = tabTitles[tab];
+                }
+                
+                document.querySelectorAll('.unified-tab-btn-' + containerId).forEach(function(btn) {
+                    btn.style.background = '#e0e0e0';
+                    btn.style.color = '#666666';
+                });
+                
+                var activeBtn = document.querySelector('.unified-tab-btn-' + containerId + '[data-tab="' + tab + '"]');
+                if (activeBtn) {
+                    activeBtn.style.background = '#000000';
+                    activeBtn.style.color = '#ffffff';
+                }
+                
+                document.querySelectorAll('.unified-carousel-panel').forEach(function(panel) {
+                    panel.style.display = panel.id === 'unified-carousel-' + tab + '-' + containerId ? 'block' : 'none';
+                });
+            };
+        </script>
+    </div>
+    `;
+}
+
+// =========================================
+// LINE CHART CAROUSEL - Shows Line Mapping
+// =========================================
+function renderLineChartCarousel(weeks, containerId) {
+    if (!weeks || weeks.length === 0) return "";
+    
+    const previousWeeks = weeks.slice(0, -1);
+    const currentWeek = weeks[weeks.length - 1];
+    
+    const formatDate = (dateStr) => {
+        if (!dateStr) return "N/A";
+        const d = new Date(dateStr);
+        const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    };
+
+    const currentStartDate = formatDate(currentWeek.startDate);
+    const currentEndDate = currentWeek.endDate ? formatDate(currentWeek.endDate) : (() => {
+        const sDate = new Date(currentWeek.startDate);
+        const eDate = new Date(sDate);
+        eDate.setDate(sDate.getDate() + 6);
+        return formatDate(eDate);
+    })();
+
+    const prevSlidesHtml = previousWeeks.reverse().map((wk, idx) => {
+        const weekNum = previousWeeks.length - idx;
+        const startLbl = formatDate(wk.startDate);
+        const endLbl = wk.endDate ? formatDate(wk.endDate) : (() => {
+            const sDate = new Date(wk.startDate);
+            const eDate = new Date(sDate);
+            eDate.setDate(sDate.getDate() + 6);
+            return formatDate(eDate);
+        })();
+
+        let tableHtml = buildLineTable([wk]);
+        tableHtml = tableHtml.replace(/<div class="carousel-table-header"><span>(CURRENT|PREVIOUS) WEEK<\/span><\/div>/, 
+            `<div class="carousel-table-header"><span>⌛ WEEK ${weekNum}</span><span>${startLbl} - ${endLbl}</span></div>`);
+            
+        return `<div class="carousel-slide">${tableHtml}</div>`;
+    }).join('');
+
+    let currentTableHtml = buildLineTable([currentWeek]);
+    currentTableHtml = currentTableHtml.replace(/<div class="carousel-table-header"><span>CURRENT WEEK<\/span><\/div>/, 
+        `<div class="carousel-table-header carousel-current-header"><span>⚜️ CURRENT WEEK</span><span>${currentStartDate} - ${currentEndDate}</span><span>LIVE RESULTS</span></div>`);
+    
+    currentTableHtml = `<div class="carousel-current-section"><div class="carousel-current-label">⚜️ CURRENT WEEK ⚜️</div>${currentTableHtml}</div>`;
+    
+    const carouselHtml = previousWeeks.length > 0 ? `
+    <div style="text-align: center; margin-bottom: 8px; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 48px; font-weight: 900; color: rgba(0,0,0,0.04); letter-spacing: 8px; pointer-events: none; white-space: nowrap; z-index: 0;">
+            CODEWITHGLASGOW
+        </div>
+        <div style="font-size: 18px; font-weight: 900; color: #000000; letter-spacing: 1px; position: relative; z-index: 1;"> </div>
+        <div style="font-size: 10px; color: #666666; position: relative; z-index: 1;"></div>
+    </div>
+    
+    <div class="carousel-container" id="${containerId}-carousel" style="margin-bottom: 4px; padding: 4px 0;">
+        <div class="carousel-track" id="${containerId}-track" style="gap: 12px;">
+            ${prevSlidesHtml}
+        </div>
+        <div class="carousel-indicators" id="${containerId}-dots" style="margin-top: 8px;"></div>
+    </div>
+    <div style="text-align:center; padding:3px 3px; opacity:0.15; font-weight:900; letter-spacing:3px; pointer-events:none; user-select:none;"><p style="margin:0; font-size:9px;">CODEWITHGLASGOW 🌐 LINE CHART</p></div>
+    <script>initPrevCarousel('${containerId}', ${previousWeeks.length});</script>
+    ` : '<div style="text-align:center;padding:20px;color:#64748b;">📅 No previous weeks available</div>';
+    
+    return carouselHtml + currentTableHtml;
+}
 
 // =====================================
-// Missing Lines and Suits Chart (14 Days)
-// =====================================
-// ====================================
-// MISSING LINES & SUITES CHART WITH DOUBLES/TRIPLES/QUADRUPLES
+// Missing Lines and Suites Chart (14 Days)
 // =====================================
 function renderIntelligentAnalysis(weeks) {
   if (!weeks || weeks.length === 0) {
     return `<div style="background: #ffffff; border-radius: 12px; padding: 20px; border: 1px solid #dddddd; text-align:center; color:#999;">📊 No data available</div>`;
   }
 
-  // Sort weeks chronologically
   const sortedWeeks = [...weeks].sort((a, b) => {
     let pa = a.startDate.split(" ");
     let pb = b.startDate.split(" ");
     return new Date(pa[2] + "-" + pa[1] + "-" + pa[0]) - new Date(pb[2] + "-" + pb[1] + "-" + pb[0]);
   });
 
-  // Get current and previous week
   const currentWeek = sortedWeeks[sortedWeeks.length - 1];
   let previousWeek = null;
   for (let i = sortedWeeks.length - 2; i >= 0; i--) {
@@ -1931,7 +2388,6 @@ function renderIntelligentAnalysis(weeks) {
   const slots = ["MOR", "MID", "NON", "EVE"];
   const now = new Date();
 
-  // Time mapping for display
   const timeDisplay = {
     MOR: "10:30 AM",
     MID: "1:00 PM",
@@ -1964,7 +2420,6 @@ function renderIntelligentAnalysis(weeks) {
     return null;
   }
 
-  // Get previous week draws with dates
   const previousWeekDraws = [];
   const previousWeekDrawsWithDate = [];
   for (let d = 0; d < dayNames.length; d++) {
@@ -1977,7 +2432,6 @@ function renderIntelligentAnalysis(weeks) {
     }
   }
 
-  // Get current week draws (up to today)
   const currentWeekDraws = [];
   const currentWeekDrawsWithDate = [];
   const todayIdx = now.getDay();
@@ -1991,7 +2445,6 @@ function renderIntelligentAnalysis(weeks) {
     }
   }
 
-  // Count occurrences
   const prevWeekCounts = {};
   const currWeekCounts = {};
   for (let i = 1; i <= 36; i++) {
@@ -2005,19 +2458,11 @@ function renderIntelligentAnalysis(weeks) {
     currWeekCounts[num] = (currWeekCounts[num] || 0) + 1; 
   });
 
-  // ====================================
-  // DOUBLES, TRIPLES, QUADRUPLES ANALYSIS
-  // CORRECTED: Proper streak progression
-  // ====================================
-
   const doubleNumbers = [8, 11, 22, 33];
   const allDoubles = [];
   const allTriples = [];
   const allQuadruples = [];
 
-  // ====================================
-  // DOUBLES: Only 8, 11, 22, 33
-  // ====================================
   const toDoubleMissing = doubleNumbers.filter(num => 
     !previousWeekDraws.includes(num) && !currentWeekDraws.includes(num)
   );
@@ -2034,13 +2479,6 @@ function renderIntelligentAnalysis(weeks) {
   toDoublePending.forEach(num => allDoubles.push(num));
   toDoubleCurrent.forEach(num => allDoubles.push(num));
 
-  // ====================================
-  // TRIPLES: All numbers 1-36
-  // - Pending: 2 HITS in previous week, 0 HITS in current week (needs 1 more)
-  // - 2 HITS: 2 HITS in current week (needs 1 more for TRIPLE)
-  // - Completed: 2 HITS previous week + 1 HIT current week = 3
-  // NOTE: 1 HIT in previous week does NOT carry over
-  // ====================================
   const toTriplePending = [];
   const toTripleCurrent = [];
   
@@ -2048,22 +2486,12 @@ function renderIntelligentAnalysis(weeks) {
     const prevCount = prevWeekCounts[num] || 0;
     const currCount = currWeekCounts[num] || 0;
     
-    // PENDING: 2 HITS previous week, 0 HITS current week
     if (prevCount === 2 && currCount === 0) toTriplePending.push(num);
-    
-    // 2 HITS: 2 HITS current week (needs 1 more)
     if (currCount === 2) toTripleCurrent.push(num);
   }
   toTriplePending.forEach(num => allTriples.push(num));
   toTripleCurrent.forEach(num => allTriples.push(num));
 
-  // ====================================
-  // QUADRUPLES: All numbers 1-36
-  // - Pending: 3 HITS in previous week, 0 HITS in current week (needs 1 more)
-  // - 3 HITS: 3 HITS in current week (needs 1 more for QUADRUPLE)
-  // - Completed: 3 HITS previous week + 1 HIT current week = 4
-  // NOTE: 1 HIT in previous week does NOT carry over
-  // ====================================
   const toQuadruplePending = [];
   const toQuadrupleCurrent = [];
   
@@ -2071,28 +2499,20 @@ function renderIntelligentAnalysis(weeks) {
     const prevCount = prevWeekCounts[num] || 0;
     const currCount = currWeekCounts[num] || 0;
     
-    // PENDING: 3 HITS previous week, 0 HITS current week
     if (prevCount === 3 && currCount === 0) toQuadruplePending.push(num);
-    
-    // 3 HITS: 3 HITS current week (needs 1 more)
     if (currCount === 3) toQuadrupleCurrent.push(num);
   }
   toQuadruplePending.forEach(num => allQuadruples.push(num));
   toQuadrupleCurrent.forEach(num => allQuadruples.push(num));
 
-  // Remove duplicates
   const uniqueDoubles = [...new Set(allDoubles)].sort((a, b) => a - b);
   const uniqueTriples = [...new Set(allTriples)].sort((a, b) => a - b);
   const uniqueQuadruples = [...new Set(allQuadruples)].sort((a, b) => a - b);
 
-  // ====================================
-  // CHECK COMPLETED STREAKS 
-  // ====================================
   const completedDoubles = [];
   const completedTriples = [];
   const completedQuadruples = [];
 
-  // DOUBLES COMPLETED: 2+ HITS in current week
   doubleNumbers.forEach(num => {
     const currCount = currWeekCounts[num] || 0;
     if (currCount >= 2 && !completedDoubles.includes(num)) {
@@ -2100,37 +2520,26 @@ function renderIntelligentAnalysis(weeks) {
     }
   });
 
-  // TRIPLES COMPLETED: 2 HITS previous week + 1 HIT current week = 3
   for (let num = 1; num <= 36; num++) {
     const prevCount = prevWeekCounts[num] || 0;
     const currCount = currWeekCounts[num] || 0;
-    // ONLY count if prevCount is 2 and currCount is 1
-    // Do NOT count if prevCount is 1 and currCount is 2 (that's 2 HITS current week)
     if (prevCount === 2 && currCount === 1) {
       completedTriples.push(num);
     }
   }
 
-  // QUADRUPLES COMPLETED: 3 HITS previous week + 1 HIT current week = 4
   for (let num = 1; num <= 36; num++) {
     const prevCount = prevWeekCounts[num] || 0;
     const currCount = currWeekCounts[num] || 0;
-    // ONLY count if prevCount is 3 and currCount is 1
-    // Do NOT count if prevCount is 2 and currCount is 2 (that's 2 HITS current week)
-    // Do NOT count if prevCount is 1 and currCount is 3 (that's 3 HITS current week)
     if (prevCount === 3 && currCount === 1) {
       completedQuadruples.push(num);
     }
   }
 
-  // Remove completed numbers from active lists
   const finalDoubles = uniqueDoubles.filter(num => !completedDoubles.includes(num));
   const finalTriples = uniqueTriples.filter(num => !completedTriples.includes(num));
   const finalQuadruples = uniqueQuadruples.filter(num => !completedQuadruples.includes(num));
 
-  // ====================================
-  // SPIRIT EMOJI & NAMES
-  // =====================================
   const spiritEmoji = {
     1: "🔪", 2: "👵🏾", 3: "🚕", 4: "⚰️", 5: "👨🏾‍🦳", 6: "🤰🏽", 7: "🐗", 8: "🐯",
     9: "🐮", 10: "🐒", 11: "🦅", 12: "🤴🏽", 13: "🐸", 14: "💰", 15: "🤧", 16: "💃🏽",
@@ -2149,9 +2558,6 @@ function renderIntelligentAnalysis(weeks) {
     31: "Parson Wife", 32: "Shrimp", 33: "Spider", 34: "Blind Man", 35: "Big Snake", 36: "Donkey"
   };
 
-  // =====================================
-  // BUILD COMPLETION BANNER WITH DATE/TIME
-  // =====================================
   const completionDetails = {};
   
   currentWeekDrawsWithDate.forEach(draw => {
@@ -2175,12 +2581,8 @@ function renderIntelligentAnalysis(weeks) {
     return `${dateStr} @ ${timeStr}`;
   }
 
-  // =====================================
-  // BUILD BANNERS FOR ALL STATUSES
-  // =====================================
   const allBanners = [];
 
-  // QUADRUPLE COMPLETED
   completedQuadruples.forEach(num => {
     const draws = completionDetails[num] || [];
     const latest = draws.length > 0 ? draws[draws.length - 1] : null;
@@ -2194,7 +2596,6 @@ function renderIntelligentAnalysis(weeks) {
     });
   });
 
-  // QUADRUPLE PENDING (3 HITS previous week, 0 current week)
   toQuadruplePending.forEach(num => {
     allBanners.push({
       num: num,
@@ -2205,7 +2606,6 @@ function renderIntelligentAnalysis(weeks) {
     });
   });
 
-  // QUADRUPLE 3 HITS (current week, needs 1 more)
   toQuadrupleCurrent.forEach(num => {
     const draws = completionDetails[num] || [];
     const latest = draws.length > 0 ? draws[draws.length - 1] : null;
@@ -2219,7 +2619,6 @@ function renderIntelligentAnalysis(weeks) {
     });
   });
 
-  // TRIPLE COMPLETED
   completedTriples.forEach(num => {
     const draws = completionDetails[num] || [];
     const latest = draws.length > 0 ? draws[draws.length - 1] : null;
@@ -2233,7 +2632,6 @@ function renderIntelligentAnalysis(weeks) {
     });
   });
 
-  // TRIPLE PENDING (2 HITS previous week, 0 current week)
   toTriplePending.forEach(num => {
     allBanners.push({
       num: num,
@@ -2244,7 +2642,6 @@ function renderIntelligentAnalysis(weeks) {
     });
   });
 
-  // TRIPLE 2 HITS (current week, needs 1 more)
   toTripleCurrent.forEach(num => {
     const draws = completionDetails[num] || [];
     const latest = draws.length > 0 ? draws[draws.length - 1] : null;
@@ -2258,7 +2655,6 @@ function renderIntelligentAnalysis(weeks) {
     });
   });
 
-  // DOUBLE COMPLETED
   doubleNumbers.forEach(num => {
     const currCount = currWeekCounts[num] || 0;
     if (currCount >= 2) {
@@ -2275,7 +2671,6 @@ function renderIntelligentAnalysis(weeks) {
     }
   });
 
-  // DOUBLE PENDING (1 HIT previous week, 0 current week)
   toDoublePending.forEach(num => {
     allBanners.push({
       num: num,
@@ -2286,7 +2681,6 @@ function renderIntelligentAnalysis(weeks) {
     });
   });
 
-  // DOUBLE 1 HIT (current week, needs 1 more)
   toDoubleCurrent.forEach(num => {
     const draws = completionDetails[num] || [];
     const latest = draws.length > 0 ? draws[draws.length - 1] : null;
@@ -2300,10 +2694,8 @@ function renderIntelligentAnalysis(weeks) {
     });
   });
 
-  // Sort by priority
   allBanners.sort((a, b) => b.priority - a.priority);
 
-  // Generate completion banner HTML
   let completionBannerHtml = '';
   if (allBanners.length > 0) {
     const bannerItems = allBanners.map((banner, index) => `
@@ -2357,9 +2749,6 @@ function renderIntelligentAnalysis(weeks) {
     `;
   }
 
-  // =====================================
-  // RENDER 3x3 GRID - CLEAN DESIGN
-  // =====================================
   function renderCategoryGrid(numbers, categoryColor, isDouble = false, isTriple = false, isQuadruple = false) {
     if (!numbers || numbers.length === 0) {
       return `<div style="text-align:center; color:#999; font-size:11px; padding:8px 0;">None</div>`;
@@ -2370,7 +2759,6 @@ function renderIntelligentAnalysis(weeks) {
     return `
       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;">
         ${displayNumbers.map(num => {
-          // Determine status
           const isMissing = isDouble && 
             !previousWeekDraws.includes(num) && 
             !currentWeekDraws.includes(num);
@@ -2425,9 +2813,6 @@ function renderIntelligentAnalysis(weeks) {
     `;
   }
 
-  // =====================================
-  // GET DATE RANGE
-  // =====================================
   function getDateRange() {
     if (!weeks || weeks.length === 0) return "Loading...";
     const sorted = [...weeks].sort((a, b) => {
@@ -2446,9 +2831,6 @@ function renderIntelligentAnalysis(weeks) {
     return `${startDate.toLocaleDateString('en-US', formatOptions)} - ${endDate.toLocaleDateString('en-US', formatOptions)}`;
   }
 
-  // ====================================
-  // ORIGINAL LINES & SUITES LOGIC
-  // =====================================
   const windowDraws = [];
   weeks.slice(-2).forEach(wk =>
     wk.days.forEach(d =>
@@ -2501,25 +2883,18 @@ function renderIntelligentAnalysis(weeks) {
   const suiteHtml = renderGroup(suites, "SUITE");
   const dateRange = getDateRange();
 
-  // =====================================
-  // FINAL HTML OUTPUT
-  // =====================================
   return `
     <div style="background: #ffffff; border-radius: 12px; padding: 12px; border: 1px solid #dddddd; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
       
-      <!-- HEADER 1 -->
       <div style="text-align: center; margin-bottom: 3px;">
         <div style="font-size: 14px; font-weight: 900; color: #000000;">⚜️♨️ STREAK PLAY INSIGHT ♨️⚜️</div>
         <div style="font-size: 10px; font-weight: 700; color: #666;">📅 ${dateRange}</div>
       </div>
       
-      <!-- COMPLETION BANNER TICKER -->
       ${completionBannerHtml}
       
-      <!-- DOUBLES, TRIPLES, QUADRUPLES - 3 Columns -->
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 3px;">
         
-        <!-- DOUBLES -->
         <div style="background: rgba(50, 215, 75, 0.05); border-radius: 8px; padding: 6px 8px; border: 1px solid rgba(50, 215, 75, 0.2);">
           <div style="text-align: center; margin-bottom: 3px;">
             <span style="font-size: 10px; font-weight: 800; color: #32d74b;">🔥DOUBLE🔥</span>
@@ -2529,7 +2904,6 @@ function renderIntelligentAnalysis(weeks) {
           ${finalDoubles.length > 0 ? `<div style="text-align: center; font-size: 7px; color: #666; margin-top: 3px;">${finalDoubles.length} numbers</div>` : ''}
         </div>
         
-        <!-- TRIPLES -->
         <div style="background: rgba(255, 157, 0, 0.05); border-radius: 8px; padding: 6px 8px; border: 1px solid rgba(255, 157, 0, 0.2);">
           <div style="text-align: center; margin-bottom: 3px;">
             <span style="font-size: 10px; font-weight: 800; color: #ff9d00;">♠️TRIPLE♠️</span>
@@ -2539,7 +2913,6 @@ function renderIntelligentAnalysis(weeks) {
           ${finalTriples.length > 0 ? `<div style="text-align: center; font-size: 7px; color: #666; margin-top: 3px;">${finalTriples.length} numbers</div>` : ''}
         </div>
         
-        <!-- QUADRUPLES -->
         <div style="background: rgba(255, 55, 95, 0.05); border-radius: 8px; padding: 6px 8px; border: 1px solid rgba(255, 55, 95, 0.2);">
           <div style="text-align: center; margin-bottom: 3px;">
             <span style="font-size: 10px; font-weight: 800; color: #ff375f;">♦️QUADRUPLE♦️</span>
@@ -2551,7 +2924,6 @@ function renderIntelligentAnalysis(weeks) {
         
       </div>
       
-      <!-- LEGEND - 3x3 Grid Layout -->
       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 4px 0 8px 0; padding: 6px; background: #f5f5f5; border-radius: 4px;">
         <div style="display: flex; align-items: center; gap: 6px; font-size: 8px; color: #666; padding: 2px 4px;">
           <span style="display: inline-block; width: 14px; height: 14px; background: #ffffff; border: 1px solid #cccccc; border-radius: 3px; flex-shrink: 0;"></span>
@@ -2581,20 +2953,17 @@ function renderIntelligentAnalysis(weeks) {
       
       <hr style="border: none; border-top: 2px solid #000000; margin: 6px 0 8px 0;">
     
-      <!-- HEADER 2 -->
       <div style="text-align: center; margin-bottom: 3px;">
         <div style="font-size: 14px; font-weight: 900; color: #000000;">♠️ MISSING LINES & SUITES CHART ♠️</div>
         <div style="font-size: 10px; font-weight: 700; color: #666;">📅 ${dateRange}</div>
       </div>
       
-      <!-- LINES & SUITES -->
       <div style="padding: 4px 8px; font-size: 13px;">
         ${lineHtml}
         <hr style="border: none; border-top: 1px solid #dddddd; margin: 3px 0;">
         ${suiteHtml}
       </div>
       
-      <!-- FOOTER -->
       <div style="margin-top: 3px; padding-top: 6px; border-top: 1px solid #dddddd; display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap;">
         <span style="font-size: 8px; color: #666;">⚡ Missing Lines & Suites Chart • CodeWithGlasgow ©️ CWG Builds</span>
       </div>
@@ -2602,19 +2971,15 @@ function renderIntelligentAnalysis(weeks) {
     </div>
   `;
 }
-//////////////////////////////////////////
 
 // =====================================
 // WHEWHE MARK & ANALYSIS CONTAINER
-// Search marks, show analysis table with due status
-// AND highlight searched numbers on the chart using their own colors
 // =====================================
 function renderWheWheMarkAnalysis(weeksData) {
     if (!weeksData || weeksData.length === 0) {
         return '<div style="background: #ffffff; border-radius: 10px; padding: 16px; border: 1px solid #dddddd; margin: 8px 0; text-align:center; color:#999;">📊 No data available for analysis</div>';
     }
 
-    // Process data for analysis
     const { marks, intervals, numberColors } = processShelfData(weeksData);
     const sortedWeeks = [...weeksData].sort((a, b) => {
         let pa = a.startDate.split(" ");
@@ -2622,7 +2987,6 @@ function renderWheWheMarkAnalysis(weeksData) {
         return new Date(pa[2] + "-" + pa[1] + "-" + pa[0]) - new Date(pb[2] + "-" + pb[1] + "-" + pb[0]);
     });
 
-    // Line and Suite definitions
     const lines = {
         1: [1,10,19,28], 2: [2,11,20,29], 3: [3,12,21,30],
         4: [4,13,22,31], 5: [5,14,23,32], 6: [6,15,24,33],
@@ -2658,13 +3022,11 @@ function renderWheWheMarkAnalysis(weeksData) {
         return parts.join('/') || '—';
     }
 
-    // Build a map for quick lookup
     const markMap = {};
     marks.forEach(m => {
         markMap[m.num] = m;
     });
 
-    // Get most played time for a number
     function getMostPlayedTime(num) {
         const info = markMap[num];
         if (!info || !info.time || info.time === "N/A") return "—";
@@ -2673,13 +3035,10 @@ function renderWheWheMarkAnalysis(weeksData) {
 
     const containerId = 'whewhe-container-' + Date.now();
 
-    // Build the HTML using string concatenation to avoid template string issues
     var html = '';
     
-    // Container opening
     html += '<div style="background: #ffffff; border-radius: 10px; padding: 12px; border: 1px solid #dddddd; margin: 6px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">';
     
-    // Header
     html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">';
     html += '<div style="display: flex; align-items: center; gap: 8px;">';
     html += '<span style="font-size: 14px; font-weight: 900; color: #000000;">🔍 WheWhe Mark & Analysis</span>';
@@ -2688,13 +3047,11 @@ function renderWheWheMarkAnalysis(weeksData) {
     html += '<button onclick="clearWheWheSearch(\'' + containerId + '\')" style="background: none; border: none; color: #999; font-size: 12px; cursor: pointer; padding: 4px 8px; display: none;" id="clearBtn-' + containerId + '">✕ Clear</button>';
     html += '</div>';
     
-    // Search Input
     html += '<div style="display: flex; gap: 6px; margin-bottom: 8px;">';
     html += '<input type="text" id="whewheInput-' + containerId + '" placeholder="e.g., 4, 12, 16, 29" style="flex: 1; padding: 8px 12px; border: 2px solid #dddddd; border-radius: 8px; font-size: 13px; font-weight: 600; color: #000; outline: none; transition: border-color 0.3s ease;" onfocus="this.style.borderColor=\'#000000\'" onblur="this.style.borderColor=\'#dddddd\'">';
     html += '<button onclick="runWheWheSearch(\'' + containerId + '\')" style="background: #000000; color: #ffffff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer;">Search</button>';
     html += '</div>';
     
-    // Results Table
     html += '<div id="whewheResults-' + containerId + '" style="display: none; margin-top: 6px; overflow-x: auto;">';
     html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #dddddd; border-radius: 8px; overflow: hidden;">';
     html += '<thead>';
@@ -2713,10 +3070,8 @@ function renderWheWheMarkAnalysis(weeksData) {
     html += '<div style="padding: 8px; font-size: 8px; color: #999; text-align: center; border-top: 1px solid #eeeeee;">⚡ Analysis based on historical data • CodeWithGlasgow ©️ CWG</div>';
     html += '</div>';
     
-    // No Results Message
     html += '<div id="whewheNoResults-' + containerId + '" style="display: none; padding: 20px; text-align: center; color: #999; font-size: 12px;">No results found. Try entering 1-4 numbers (e.g., 4, 12, 16, 29)</div>';
     
-    // Styles
     html += '<style>';
     html += '#whewheInput-' + containerId + '::placeholder { color: #bbbbbb; font-weight: 400; }';
     html += '#whewheInput-' + containerId + ':focus { border-color: #000000; }';
@@ -2726,13 +3081,11 @@ function renderWheWheMarkAnalysis(weeksData) {
     html += '.status-badge.monitor { background: #32d74b; color: #000000; }';
     html += '.status-badge.unknown { background: #e0e0e0; color: #666666; }';
     html += '.analysis-ball { display: inline-block; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; font-weight: 900; font-size: 14px; color: #000; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }';
-    // Dynamic search highlight - will be applied via JavaScript with the number's own color
     html += '.search-highlight { font-weight: 900 !important; box-shadow: inset 0 0 20px rgba(0,0,0,0.2) !important; }';
     html += '</style>';
     
     html += '</div>';
     
-    // Script
     html += '<script>';
     html += '(function() {';
     html += 'const containerId = \'' + containerId + '\';';
@@ -2742,7 +3095,6 @@ function renderWheWheMarkAnalysis(weeksData) {
     html += 'const clearBtn = document.getElementById(\'clearBtn-\' + containerId);';
     html += 'const tableBody = document.getElementById(\'whewheTableBody-\' + containerId);';
     
-    // Data
     html += 'const markData = ' + JSON.stringify(markMap) + ';';
     html += 'const intervals = ' + JSON.stringify(intervals) + ';';
     html += 'const numberColors = ' + JSON.stringify(numberColors) + ';';
@@ -2760,7 +3112,6 @@ function renderWheWheMarkAnalysis(weeksData) {
     html += 'const suites = ' + JSON.stringify(suites) + ';';
     
     html += `
-    // Store current search numbers for chart highlighting
     window.currentSearchNumbers = [];
     
     function getLineSuite(num) {
@@ -2802,9 +3153,7 @@ function renderWheWheMarkAnalysis(weeksData) {
         return numberColors[key] || '#cccccc';
     }
     
-    // Function to highlight searched numbers on the chart using their own colors
     function highlightSearchedNumbers(numbers) {
-        // Remove previous search highlights
         document.querySelectorAll('.search-highlight').forEach(function(el) {
             el.classList.remove('search-highlight');
             el.style.backgroundColor = '';
@@ -2813,47 +3162,33 @@ function renderWheWheMarkAnalysis(weeksData) {
         
         if (!numbers || numbers.length === 0) return;
         
-        // Find and highlight matching cells in the chart table
         const cells = document.querySelectorAll('.table-wrap td');
         cells.forEach(function(cell) {
             const cellText = cell.textContent.trim();
             const num = parseInt(cellText);
             
-            // ONLY match if:
-            // 1. It's a valid number (1-36)
-            // 2. It's NOT a week label (week labels contain "/" like "24/3/26")
-            // 3. It's NOT a holiday cell (contains "HOLIDAY")
-            // 4. It's NOT a pending cell (contains "..." or "—")
             if (!isNaN(num) && num >= 1 && num <= 36 && numbers.includes(num)) {
-                // Check if the cell is a week label (contains "/" in the text)
                 const isWeekLabel = cellText.includes('/');
                 const isHoliday = cellText.includes('HOLIDAY');
                 const isPending = cellText.includes('...') || cellText.includes('—');
                 
-                // Skip week labels, holidays, and pending cells
                 if (isWeekLabel || isHoliday || isPending) return;
                 
-                // Don't override Leaving/Meeting highlights
                 if (!cell.classList.contains('leaving-highlight') && !cell.classList.contains('meeting-highlight')) {
                     const color = getColor(num);
                     cell.classList.add('search-highlight');
                     cell.style.backgroundColor = color;
-                    // If color is light, use dark text, otherwise white text
                     cell.style.color = isLightColor(color) ? '#000000' : '#ffffff';
                 }
             }
         });
     }
     
-    // Helper to check if a color is light
     function isLightColor(hex) {
-        // Remove # if present
         hex = hex.replace('#', '');
-        // Parse RGB
         const r = parseInt(hex.substring(0, 2), 16);
         const g = parseInt(hex.substring(2, 4), 16);
         const b = parseInt(hex.substring(4, 6), 16);
-        // Calculate luminance
         const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
         return luminance > 0.5;
     }
@@ -2882,7 +3217,6 @@ function renderWheWheMarkAnalysis(weeksData) {
             return;
         }
         
-        // Store for chart highlighting
         window.currentSearchNumbers = uniqueNumbers;
         highlightSearchedNumbers(uniqueNumbers);
         
@@ -2934,20 +3268,15 @@ function renderWheWheMarkAnalysis(weeksData) {
     
     return html;
 }
-//////////////////////////////////////////
 
 // ====================================
-// 3. FULL SCREEN CHART WITH STACKED LEAVING/MEETING - ENHANCED
+// 3. FULL SCREEN CHART WITH STACKED LEAVING/MEETING
 // ====================================
-function generateFullScreenChart(weeks, gameType, title) {
-    const isPick2 = (gameType === "PIKII");
-    const isPick4 = (gameType === "PIKIV");
+function generateFullScreenChart(weeks, gameType, title, pwData) {
     const isPlayWhe = (gameType === "P2WHE");
     
-    // Get last 41 weeks
     const displayWeeks = weeks.slice(-41);
     
-    // ===== LEAVING & MEETING LOGIC - ENHANCED WITH MULTI-WEEK SEARCH ======
     let leavingNumber = null;
     let leavingSlot = null;
     let leavingDay = null;
@@ -2967,7 +3296,6 @@ function generateFullScreenChart(weeks, gameType, title) {
         
         const currentWeek = sortedWeeks[sortedWeeks.length - 1];
         
-        // Find the most recent non-holiday previous week with valid draws
         let previousWeek = null;
         for (let i = sortedWeeks.length - 2; i >= 0; i--) {
             const week = sortedWeeks[i];
@@ -3019,7 +3347,6 @@ function generateFullScreenChart(weeks, gameType, title) {
             return drawDate;
         }
         
-        // STEP 1: Find LEAVING number - Search current week first
         let leavingDayIdx = -1;
         let leavingSlotIdx = -1;
         
@@ -3039,7 +3366,6 @@ function generateFullScreenChart(weeks, gameType, title) {
             if (leavingNumber) break;
         }
         
-        // STEP 2: If no leaving number in current week, search all previous weeks
         if (!leavingNumber) {
             for (let w = sortedWeeks.length - 2; w >= 0; w--) {
                 const week = sortedWeeks[w];
@@ -3062,7 +3388,6 @@ function generateFullScreenChart(weeks, gameType, title) {
             }
         }
         
-        // STEP 3: Find MEETING number (next slot after leaving)
         if (leavingDayIdx !== -1 && leavingSlotIdx !== -1) {
             let nextDayIdx = leavingDayIdx;
             let nextSlotIdx = leavingSlotIdx + 1;
@@ -3080,7 +3405,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                 const targetDay = daysOfWeek[nextDayIdx];
                 const targetSlot = timeOrder[nextSlotIdx];
                 
-                // FIRST: Try previous week (preferred source)
                 meetingNumber = getDraw(previousWeek, targetDay, targetSlot);
                 if (meetingNumber) {
                     meetingSlot = targetSlot;
@@ -3088,7 +3412,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                     meetingDate = getDateForDraw(previousWeek, targetDay);
                 }
                 
-                // SECOND: If not found in previous week, search backwards through weeks
                 if (!meetingNumber) {
                     for (let w = sortedWeeks.length - 2; w >= 0; w--) {
                         const week = sortedWeeks[w];
@@ -3103,7 +3426,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                     }
                 }
                 
-                // THIRD: If still not found, try current week as absolute fallback
                 if (!meetingNumber) {
                     const draw = getDraw(currentWeek, targetDay, targetSlot);
                     if (draw) {
@@ -3120,7 +3442,6 @@ function generateFullScreenChart(weeks, gameType, title) {
         if (meetingNumber) activeHighlights.push(meetingNumber.toString());
     }
     
-    // ======== HELPER FUNCTIONS ========
     function formatShortDate(dateStr) {
         if (!dateStr) return "";
         const parts = dateStr.split(" ");
@@ -3150,14 +3471,11 @@ function generateFullScreenChart(weeks, gameType, title) {
         return targetDate < today;
     }
     
-    // FIXED: Use the week.isCurrentWeek flag from the data
     function isCurrentWeek(week) {
         if (!week) return false;
-        // Use the flag from the data if available
         if (week.isCurrentWeek !== undefined) {
             return week.isCurrentWeek === true;
         }
-        // Fallback: check if today falls within the week range
         if (!week.startDate) return false;
         const today = new Date();
         const parts = week.startDate.split(" ");
@@ -3170,17 +3488,9 @@ function generateFullScreenChart(weeks, gameType, title) {
     
     function formatValue(val) {
         if (!val || val === "-" || val === "PENDING") return "";
-        if (isPick2 && val.includes(",")) {
-            let parts = val.split(",");
-            return `${parts[0]}/${parts[1]}`;
-        }
-        if (isPick4) {
-            return val;
-        }
         return val;
     }
     
-    // Format leaving and meeting info for stacked display with fallbacks
     let leavingDisplay = "—";
     let meetingDisplay = "—";
     let leavingDateDisplay = "No data available";
@@ -3259,7 +3569,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                 margin-top: 2px;
             }
             
-            /* Stacked Leaving/Meeting Container */
             .lm-container {
                 display: flex;
                 justify-content: center;
@@ -3346,7 +3655,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                 background: #f5f5f5;
                 width: 10%;
             }
-            /* Black border line between day groups */
             th.day-border, td.day-border {
                 border-left: 3px solid #000000 !important;
             }
@@ -3375,14 +3683,12 @@ function generateFullScreenChart(weeks, gameType, title) {
                 background: #fff5f5;
                 text-align: center;
             }
-            /* Leaving Highlight - full cell */
             td.leaving-highlight {
                 background: #00f2ff !important;
                 color: #000000 !important;
                 font-weight: 900 !important;
                 box-shadow: inset 0 0 20px rgba(0, 242, 255, 0.3);
             }
-            /* Meeting Highlight - full cell */
             td.meeting-highlight {
                 background: #ff9d00 !important;
                 color: #000000 !important;
@@ -3408,7 +3714,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                 z-index: 2;
             }
             
-            /* Portrait mode - fits perfectly */
             @media (max-width: 480px) {
                 table { font-size: 7px; }
                 td { padding: 2px 0px; font-size: 8px; }
@@ -3421,7 +3726,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                 .lm-box { padding: 4px 6px; }
             }
             
-            /* Landscape mode - full view */
             @media (min-width: 768px) {
                 table { font-size: 12px; }
                 td { padding: 5px 2px; font-size: 13px; }
@@ -3430,6 +3734,243 @@ function generateFullScreenChart(weeks, gameType, title) {
                 .lm-box .number { font-size: 28px; }
             }
 
+            .carousel-container {
+                margin-bottom: -21px;
+                background: transparent;
+                border-radius: 6px;
+                padding: 4px 4px;
+            }
+
+            .carousel-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: -10px;
+                padding: 0 3px;
+            }
+
+            .carousel-title {
+                font-size: 12px;
+                font-weight: bold;
+                color: #94a3b8;
+                letter-spacing: 1px;
+            }
+
+            .carousel-nav {
+                display: flex;
+                gap: 2px;
+            }
+
+            .carousel-btn {
+                background: var(--card);
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 20px;
+                padding: 3px 3px;
+                color: white;
+                font-size: 11px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            body.light-mode .carousel-btn {
+                color: #000;
+                border-color: #ccc;
+            }
+
+            .carousel-btn:hover {
+                background: var(--accent);
+                color: black;
+                border-color: var(--accent);
+            }
+
+            .carousel-btn:active {
+                transform: scale(0.95);
+            }
+
+            .carousel-indicators {
+                display: flex;
+                justify-content: center;
+                gap: 2px;
+                margin-top: -5px;
+                margin-bottom: -5px;
+            }
+
+            .carousel-dot {
+                width: 2px;
+                height: 2px;
+                border-radius: 50%;
+                background: rgba(255,255,255,0.3);
+                transition: all 0.2s ease;
+                cursor: pointer;
+            }
+
+            body.light-mode .carousel-dot {
+                background: rgba(0,0,0,0.3);
+            }
+
+            .carousel-dot.active {
+                background: var(--accent);
+                width: 6px;
+                border-radius: 3px;
+            }
+
+            .carousel-track {
+                overflow-x: scroll;
+                scroll-snap-type: x mandatory;
+                scroll-behavior: smooth;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                display: flex;
+                gap: 7px;
+                padding: 2px 2px;
+            }
+
+            .carousel-track::-webkit-scrollbar {
+                display: none;
+            }
+
+            .carousel-slide {
+                scroll-snap-align: start;
+                flex: 0 0 100%;
+                min-width: 0;
+            }
+
+            .carousel-current-section {
+                margin-top: -7px;
+                border-top: 1px solid rgba(255,157,0,0.3);
+                padding-top: 0px;
+            }
+
+            .carousel-current-label {
+                font-size: 14px;
+                font-weight: bold;
+                color: #00ff88;
+                text-align: center;
+                margin-bottom: 4px;
+                letter-spacing: 2px;
+            }
+
+            body.light-mode .carousel-current-label {
+                color: #000000;
+            }
+
+            .carousel-table-wrapper {
+                margin-bottom: -10px;
+                border-radius: 20px;
+                overflow: hidden;
+                border: 1px solid rgba(255,255,255,0.1);
+                background: var(--card);
+            }
+
+            .carousel-table-header {
+                background: rgba(255,255,255,0.1);
+                padding: 4px;
+                font-size: 12px;
+                font-weight: 900;
+                color: black;
+                display: flex;
+                justify-content: space-between;
+            }
+
+            .carousel-current-header {
+                border-left: 4px solid #00ff88;
+                background: rgba(0,255,136,0.1);
+            }
+
+            body.light-mode .carousel-current-header {
+                border-left-color: #000;
+                background: rgba(0,0,0,0.05);
+            }
+
+            .carousel-table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .carousel-table th {
+                font-size: 12px;
+                color: var(--text-dim);
+                padding: 8px;
+            }
+
+            .carousel-table td {
+                padding: 9px 0px;
+                text-align: center;
+                border-bottom: 1px solid rgba(255,255,255,0.05);
+                font-size: 12px;
+                font-weight: 800;
+            }
+
+            .carousel-current-day {
+                background: #00f2ff !important;
+                color: #000000 !important;
+                font-weight: 900 !important;
+                box-shadow: inset 0 0 20px rgba(0, 242, 255, 0.2);
+            }
+
+            .carousel-current-day td {
+                background: #00f2ff !important;
+                color: #000000 !important;
+            }
+
+            .carousel-day-label {
+                color: var(--accent);
+                font-size: 11px;
+            }
+
+            .carousel-heat-grid {
+                display: grid;
+                grid-template-columns: repeat(6, 1fr);
+                gap: 5px;
+                padding: 10px;
+            }
+
+            .carousel-heat-cell {
+                aspect-ratio: 1/1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                border-radius: 6px;
+                position: relative;
+                overflow: hidden;
+                border: 1px solid rgba(255,255,255,0.05);
+            }
+
+            .carousel-hit-0 { background: #fff !important; color: #000 !important; }
+            .carousel-hit-1 { background: #ffd60a !important; color: #000 !important; }
+            .carousel-hit-2 { background: #ff9f0a !important; color: #000 !important; }
+            .carousel-hit-3 { background: #ff375f !important; color: #fff !important; }
+            .carousel-hit-4 { background: #5856d6 !important; color: #fff !important; }
+            .carousel-hit-5 { background: #007aff !important; color: #fff !important; }
+            .carousel-hit-6 { background: #32d74b !important; color: #000 !important; }
+            .carousel-hit-7plus { background: #bf5af2 !important; color: #fff !important; }
+
+            .carousel-ls-table td {
+                font-size: 13px;
+            }
+
+            .carousel-ls-label {
+                background: #00f2ff !important;
+                color: #000 !important;
+                width: 35px;
+            }
+
+            .carousel-ls-count {
+                background: #ff375f33 !important;
+                color: #ff375f !important;
+                width: 35px;
+            }
+
+            .carousel-branding {
+                background: #ff9d00;
+                color: #000;
+                text-align: center;
+                padding: 5px;
+                font-weight: 900;
+                margin-top: 5px;
+            }
         </style>
     </head>
     <body>
@@ -3440,7 +3981,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                 <h1>${title} CHART • ${todayDateDisplay}</h1>
             </div>
             
-            <!-- Stacked Leaving/Meeting Boxes with Enhanced Display -->
             ${isPlayWhe ? `
             <div class="lm-container">
                 <div class="lm-box leaving">
@@ -3471,16 +4011,13 @@ function generateFullScreenChart(weeks, gameType, title) {
                             <th></th>
     `;
     
-    // Day headers - each day repeated 4 times with black border between days
     for (let i = 0; i < dayShort.length; i++) {
         const borderClass = i > 0 ? 'day-border' : '';
         html += `<th colspan="4" class="${borderClass}">${dayShort[i]}</th>`;
     }
     html += `</tr></thead><tbody>`;
     
-    // Loop through weeks
     displayWeeks.forEach((week, weekIndex) => {
-        // FIXED: Use the week.isCurrentWeek flag from the data
         const isCurrent = week.isCurrentWeek === true || isCurrentWeek(week);
         const rowClass = isCurrent ? 'row-current' : (weekIndex % 2 === 0 ? 'row-odd' : 'row-even');
         const weekDate = formatShortDate(week.startDate);
@@ -3492,7 +4029,6 @@ function generateFullScreenChart(weeks, gameType, title) {
             const dayName = daysOfWeek[d];
             const day = week.days.find(dy => dy.dayName === dayName);
             
-            // Black border between day groups
             const borderClass = d > 0 ? 'day-border' : '';
             
             let isHoliday = false;
@@ -3517,7 +4053,6 @@ function generateFullScreenChart(weeks, gameType, title) {
                 const val = day ? day.draws[slot] : null;
                 const isValid = val && val !== "-" && val !== "PENDING";
                 
-                // Check for Leaving/Meeting highlight - apply to the CELL
                 let highlightClass = "";
                 if (isPlayWhe && isValid) {
                     const valStr = val.toString().trim();
@@ -3557,26 +4092,25 @@ function generateFullScreenChart(weeks, gameType, title) {
                 <span>♠️ ${displayWeeks.length} weeks</span>
                 <span>CODEWITHGLASGOW ©️ CWG Charts Analysis</span>
             </div>
-            <div style="width:100%; height:2px; background:#000;"></div>
-            <br>
-            
-  <!-- WheWhe Mark & Analysis Container-->
-            ${renderWheWheMarkAnalysis(displayWeeks)}
-  <br>
-  <div style="width:100%; height:2px; background:#000;"></div>
-            
-  <br>
-  ${renderWheWheWeekendPicks(displayWeeks)}
-  <br>
-            
-  <!-- Missing Lines & Suites Container -->
-  ${renderIntelligentAnalysis(displayWeeks)}
-            
-  <br> 
-            
-  <!-- PlayWhe Shelf Marks Container -->
- ${renderShelfContainer(displayWeeks)}
-            
+<br>
+<div style="width:100%; height:2px; background:#000;"></div>
+<br>
+ <!-- WheWhe Mark & Analysis Container-->
+${renderWheWheMarkAnalysis(displayWeeks)}
+<br>
+<div style="width:100%; height:2px; background:#000;"></div>
+<br>
+<!-- Historical Carousel Wks -->
+${renderUnifiedCarouselContainer(displayWeeks)}
+<br>
+<div style="width:100%; height:2px; background:#000;"></div>
+<br>
+${renderWheWheWeekendPicks(displayWeeks)}
+<br>
+<div style="width:100%; height:2px; background:#000;"></div>
+<br>
+ <!-- Missing Lines & Suites Container -->
+${renderIntelligentAnalysis(displayWeeks)}
         </div>
     </body>
     </html>
