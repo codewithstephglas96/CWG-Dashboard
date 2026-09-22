@@ -89,7 +89,7 @@ function getYearFilteredWeeks(allWeeks, selectedYear) {
         return allWeeks.filter(wk => {
             const wkDate = new Date(wk.startDate);
             return wkDate <= today || wk.isCurrentWeek;
-        }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).slice(-41);
+        }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).slice(-38);
     }
     
     return allWeeks.filter(wk => {
@@ -1574,8 +1574,8 @@ function renderUnifiedCarouselContainer(weeksData) {
     
     const containerId = 'unified-' + Date.now();
     
-    const pwWeeks = JSON.parse(JSON.stringify(weeksData.slice(-41)));
-    const lineWeeks = JSON.parse(JSON.stringify(weeksData.slice(-41)));
+    const pwWeeks = JSON.parse(JSON.stringify(weeksData.slice(-38)));
+    const lineWeeks = JSON.parse(JSON.stringify(weeksData.slice(-38)));
 
     const playWheCarousel = renderCarouselWithCurrentPW(pwWeeks, containerId + '-pw');
     const lineChartCarousel = renderLineChartCarousel(lineWeeks, containerId + '-line');
